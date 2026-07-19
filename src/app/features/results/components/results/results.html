@@ -1,0 +1,380 @@
+<div class="mx-auto max-w-[1080px]">
+  <div class="mb-5">
+    <h1 class="m-0 mb-[5px] text-2xl font-bold tracking-tight">Visualizzazione risultati</h1>
+    <p class="m-0 text-sm text-[var(--text-muted)]">
+      Confronto tra protocolli a parità di scenario e dettaglio delle singole misurazioni.
+    </p>
+  </div>
+
+  @if (!loaded() && loading()) {
+    <div
+      class="flex items-center gap-3 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-6 py-8 text-sm text-[var(--text-muted)] shadow-[var(--shadow-sm)]"
+    >
+      <span
+        class="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)]"
+      ></span>
+      Caricamento dei risultati…
+    </div>
+  } @else {
+    <!-- FILTRI -->
+    <div class="mb-5 flex flex-wrap gap-4">
+      <div>
+        <label
+          class="mb-[7px] block font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+          >Sessione</label
+        >
+        <select
+          [value]="sessionFilter()"
+          (change)="setSessionFilter($any($event.target).value)"
+          class="h-10 min-w-[240px] cursor-pointer rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13px] font-medium text-[var(--text)] shadow-[var(--shadow-sm)] outline-none"
+        >
+          @for (opt of sessionOptions(); track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label
+          class="mb-[7px] block font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+          >Scenario</label
+        >
+        <select
+          [value]="scenarioFilter()"
+          (change)="setScenarioFilter($any($event.target).value)"
+          class="h-10 min-w-[240px] cursor-pointer rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13px] font-medium text-[var(--text)] shadow-[var(--shadow-sm)] outline-none"
+        >
+          @for (opt of scenarioOptions(); track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <!-- CONFRONTO PROTOCOLLI -->
+    <div
+      class="mb-5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)]"
+    >
+      <div
+        class="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] px-[22px] py-[18px]"
+      >
+        <div>
+          <h2 class="m-0 mb-[3px] text-[15px] font-semibold">
+            Confronto protocolli · HTTP/2 vs HTTP/3
+          </h2>
+          <p class="m-0 text-[12.5px] text-[var(--text-muted)]">{{ scopeText() }}</p>
+        </div>
+        @if (hasCompare()) {
+          <span
+            class="inline-flex items-center gap-[7px] rounded-[20px] px-[13px] py-[5px] text-xs font-bold"
+            [class]="overallBadgeClass()"
+            >{{ overallText() }}</span
+          >
+        }
+      </div>
+
+      @if (hasCompare()) {
+        <div class="grid grid-cols-3 gap-3.5 px-[22px] py-[18px]">
+          @for (c of compareRows(); track c.label) {
+            <div
+              class="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-[18px] py-4"
+            >
+              <div class="mb-4 min-h-[34px] text-[12.5px] text-[var(--text-muted)]">
+                {{ c.label }}
+              </div>
+              <div class="mb-4 flex gap-3.5">
+                <div class="min-w-0 flex-1">
+                  <div class="mb-1.5 flex items-center gap-[7px]">
+                    <span class="h-[9px] w-[9px] rounded-[3px] bg-[var(--accent)]"></span>
+                    <span class="font-mono text-[11px] font-semibold text-[var(--accent)]"
+                      >HTTP/2</span
+                    >
+                  </div>
+                  <div
+                    class="font-mono text-[22px] font-bold"
+                    [class]="c.h2Winner ? 'text-[var(--text)]' : 'text-[var(--text-faint)]'"
+                  >
+                    {{ c.h2Text }}
+                  </div>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="mb-1.5 flex items-center gap-[7px]">
+                    <span class="h-[9px] w-[9px] rounded-[3px] bg-[var(--warn)]"></span>
+                    <span class="font-mono text-[11px] font-semibold text-[var(--warn)]"
+                      >HTTP/3</span
+                    >
+                  </div>
+                  <div
+                    class="font-mono text-[22px] font-bold"
+                    [class]="c.h3Winner ? 'text-[var(--text)]' : 'text-[var(--text-faint)]'"
+                  >
+                    {{ c.h3Text }}
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span
+                  class="inline-block rounded-[20px] px-2.5 py-[3px] text-[11.5px] font-semibold whitespace-nowrap"
+                  [class]="c.badgeClass"
+                  >{{ c.winnerLabel }}</span
+                >
+                <span class="font-mono text-[11.5px] text-[var(--text-faint)]">{{
+                  c.deltaText
+                }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="px-5 py-9 text-center">
+          <p class="m-0 text-[13.5px] text-[var(--text-muted)]">Nessun dato di confronto.</p>
+          <p class="mt-1.5 mb-0 text-[12.5px] text-[var(--text-faint)]">
+            Servono misurazioni completate su entrambi i protocolli per questo filtro.
+          </p>
+        </div>
+      }
+    </div>
+
+    <!-- GRAFICI -->
+    @if (lineChart(); as line) {
+      <div
+        class="mb-5 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-6 py-[22px] shadow-[var(--shadow-sm)]"
+      >
+        <div class="mb-5 flex flex-wrap items-center justify-between gap-4">
+          <h2 class="m-0 text-[15px] font-semibold">Andamento e confronto</h2>
+          <div class="flex items-center gap-3.5">
+            <span
+              class="inline-flex items-center gap-[7px] font-mono text-[11.5px] text-[var(--text-muted)]"
+              ><span class="h-[11px] w-[11px] rounded-[3px] bg-[var(--accent)]"></span>HTTP/2</span
+            >
+            <span
+              class="inline-flex items-center gap-[7px] font-mono text-[11.5px] text-[var(--text-muted)]"
+              ><span class="h-[11px] w-[11px] rounded-[3px] bg-[var(--warn)]"></span>HTTP/3</span
+            >
+          </div>
+        </div>
+
+        <div class="grid grid-cols-[1.4fr_1fr] items-stretch gap-7">
+          <!-- LINEA: andamento nel tempo -->
+          <div>
+            <div
+              class="mb-3 font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+            >
+              Tempo totale medio per giorno (ms)
+            </div>
+            <div class="flex gap-2">
+              <div class="relative h-[220px] w-[38px] flex-none">
+                @for (t of line.yTicks; track t.label) {
+                  <span
+                    class="absolute right-0.5 -translate-y-1/2 font-mono text-[10px] text-[var(--text-faint)]"
+                    [style.top.%]="t.topPct"
+                    >{{ t.label }}</span
+                  >
+                }
+              </div>
+              <div class="min-w-0 flex-1">
+                <svg
+                  [attr.viewBox]="line.viewBox"
+                  preserveAspectRatio="none"
+                  class="block h-[220px] w-full"
+                >
+                  @for (g of line.gridLines; track g) {
+                    <line
+                      x1="8"
+                      x2="672"
+                      [attr.y1]="g"
+                      [attr.y2]="g"
+                      stroke="var(--border)"
+                      stroke-width="1"
+                      vector-effect="non-scaling-stroke"
+                    />
+                  }
+                  @for (s of line.series; track s.proto) {
+                    <polyline
+                      [attr.points]="s.points"
+                      fill="none"
+                      [attr.stroke]="s.colorVar"
+                      stroke-width="2.5"
+                      stroke-linejoin="round"
+                      stroke-linecap="round"
+                      vector-effect="non-scaling-stroke"
+                    />
+                  }
+                </svg>
+                <div class="mt-2 flex justify-between">
+                  @for (x of line.xLabels; track $index) {
+                    <span class="font-mono text-[10px] text-[var(--text-faint)]">{{ x }}</span>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- BARRE: confronto tra scenari -->
+          <div>
+            <div
+              class="mb-3 font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+            >
+              Tempo medio per scenario (ms)
+            </div>
+            @if (barChart(); as bars) {
+              <div class="flex h-[220px] items-stretch gap-4">
+                @for (b of bars; track b.scenarioPath) {
+                  <div class="flex flex-1 flex-col items-center gap-2">
+                    <div class="flex w-full flex-1 items-end justify-center gap-1.5">
+                      @if (b.h2) {
+                        <div class="flex w-full max-w-[28px] flex-col items-center gap-1.5">
+                          <span class="font-mono text-[10px] text-[var(--text-muted)]">{{
+                            b.h2.valueText
+                          }}</span>
+                          <div
+                            class="w-full rounded-t-[6px] bg-[var(--accent)] transition-[height] duration-500"
+                            [style.height.%]="b.h2.heightPct"
+                          ></div>
+                        </div>
+                      }
+                      @if (b.h3) {
+                        <div class="flex w-full max-w-[28px] flex-col items-center gap-1.5">
+                          <span class="font-mono text-[10px] text-[var(--text-muted)]">{{
+                            b.h3.valueText
+                          }}</span>
+                          <div
+                            class="w-full rounded-t-[6px] bg-[var(--warn)] transition-[height] duration-500"
+                            [style.height.%]="b.h3.heightPct"
+                          ></div>
+                        </div>
+                      }
+                    </div>
+                    <span
+                      class="truncate font-mono text-[10.5px] text-[var(--text)]"
+                      [title]="b.scenarioPath"
+                      >{{ b.scenarioPath }}</span
+                    >
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- MISURAZIONI GREZZE -->
+    <div
+      class="overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)]"
+    >
+      <div
+        class="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] px-[22px] py-[18px]"
+      >
+        <div>
+          <h2 class="m-0 mb-[3px] text-[15px] font-semibold">Misurazioni · risultati grezzi</h2>
+          <p class="m-0 text-[12.5px] text-[var(--text-muted)]">
+            Ogni riga è una singola misurazione. Apri il dettaglio per i dati completi.
+          </p>
+        </div>
+        <span class="font-mono text-xs text-[var(--text-muted)]">{{ runCountText() }}</span>
+      </div>
+
+      <div
+        class="grid grid-cols-[1fr_0.9fr_0.9fr_0.8fr_1fr_0.9fr_92px] gap-3 border-b border-[var(--border)] bg-[var(--surface-2)] px-[22px] py-[11px] font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+      >
+        <span>Server</span><span>Proto</span><span>Tempo tot.</span><span>TTFB</span
+        ><span>Dati</span><span>Stato</span><span></span>
+      </div>
+
+      @if (runRows().length > 0) {
+        @for (row of runRows(); track row.result.id) {
+          <div
+            class="grid grid-cols-[1fr_0.9fr_0.9fr_0.8fr_1fr_0.9fr_92px] items-center gap-3 border-b border-[var(--border)] px-[22px] py-[13px] last:border-b-0"
+          >
+            <div class="min-w-0">
+              <div class="truncate font-mono text-[13px] font-semibold text-[var(--text)]">
+                {{ row.result.target }}
+              </div>
+              <div class="truncate font-mono text-[11px] text-[var(--text-faint)]">
+                {{ row.result.scenarioPath }}
+              </div>
+            </div>
+            <span>
+              <span
+                class="rounded-[20px] px-2.5 py-[3px] font-mono text-[11px] font-semibold whitespace-nowrap"
+                [class]="row.protoClass"
+                >{{ row.protoLabel }}</span
+              >
+            </span>
+            <span class="font-mono text-[12.5px] text-[var(--text)]">{{ row.totalText }}</span>
+            <span class="font-mono text-[12.5px] text-[var(--text-muted)]">{{
+              row.ttfbText
+            }}</span>
+            <span class="font-mono text-[12.5px] text-[var(--text-muted)]">{{ row.kbText }}</span>
+            <span>
+              <span
+                class="inline-block rounded-[20px] px-2.5 py-[3px] text-[11.5px] font-semibold whitespace-nowrap"
+                [class]="row.statusClass"
+                >{{ row.statusLabel }}</span
+              >
+            </span>
+            <button
+              type="button"
+              (click)="openDetail(row.result)"
+              class="h-8 justify-self-end rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3.5 text-[12.5px] font-medium text-[var(--text)] transition-colors hover:border-[var(--border-strong)]"
+            >
+              Dettaglio
+            </button>
+          </div>
+        }
+      } @else {
+        <div class="px-5 py-11 text-center">
+          <p class="m-0 text-[13.5px] text-[var(--text-muted)]">Nessuna misurazione trovata.</p>
+          <p class="mt-1.5 mb-0 text-[12.5px] text-[var(--text-faint)]">
+            Prova a cambiare i filtri, oppure esegui una sessione per generare risultati.
+          </p>
+        </div>
+      }
+    </div>
+  }
+</div>
+
+<!-- DRAWER: dettaglio misurazione -->
+@if (detailOpen()) {
+  <div class="fixed inset-0 z-40 flex justify-end">
+    <div class="absolute inset-0 bg-black/40" (click)="closeDetail()"></div>
+    <div
+      class="relative flex h-full w-[420px] max-w-[92vw] flex-col border-l border-[var(--border)] bg-[var(--bg)] shadow-[var(--shadow-lg)]"
+    >
+      <div
+        class="flex items-center justify-between border-b border-[var(--border)] px-[26px] py-[22px]"
+      >
+        <div>
+          <div
+            class="mb-[5px] font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+          >
+            Dettaglio misurazione
+          </div>
+          <h2 class="m-0 mb-[3px] text-[17px] font-bold tracking-tight text-[var(--text)]">
+            {{ detailTitle() }}
+          </h2>
+          <p class="m-0 text-[12.5px] text-[var(--text-muted)]">{{ detailSub() }}</p>
+        </div>
+        <button
+          type="button"
+          (click)="closeDetail()"
+          class="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[9px] border border-[var(--border)] bg-[var(--surface-2)] text-base text-[var(--text-muted)] hover:text-[var(--text)]"
+        >
+          ✕
+        </button>
+      </div>
+      <div class="qmain flex-1 overflow-y-auto px-[26px] py-2.5">
+        @for (row of detailRows(); track row.label) {
+          <div
+            class="flex items-baseline justify-between gap-3.5 border-b border-[var(--border)] py-[15px] last:border-b-0"
+          >
+            <span class="text-[13px] text-[var(--text-muted)]">{{ row.label }}</span>
+            <span class="text-right font-mono text-sm font-semibold" [class]="row.colorClass">{{
+              row.value
+            }}</span>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,380 @@
+<div class="mx-auto max-w-[1080px]">
+  <div class="mb-[22px]">
+    <h1 class="m-0 mb-[5px] text-2xl font-bold tracking-tight">Nuova sessione di test</h1>
+    <p class="m-0 text-sm text-[var(--text-muted)]">
+      Combina uno o più <strong class="text-[var(--text)]">Server</strong> con uno o più
+      <strong class="text-[var(--text)]">Scenari</strong> e una
+      <strong class="text-[var(--text)]">Configurazione</strong> comune: al termine viene generata
+      una Sessione pronta da avviare.
+    </p>
+  </div>
+
+  <!-- STEPPER -->
+  <div class="mb-[22px] flex items-center">
+    @for (st of stepMeta(); track st.n; let last = $last) {
+      <button
+        type="button"
+        (click)="goStep(st.n)"
+        [disabled]="st.locked"
+        class="flex items-center gap-[11px] rounded-[11px] border px-3 py-2 transition-colors"
+        [class]="
+          st.active
+            ? 'border-[var(--accent)] bg-[var(--accent-soft)]'
+            : 'border-transparent bg-transparent ' + (st.locked ? 'cursor-not-allowed' : 'cursor-pointer')
+        "
+      >
+        <span
+          class="flex h-[26px] w-[26px] flex-none items-center justify-center rounded-full border-[1.5px] font-mono text-[12.5px] font-bold transition-colors"
+          [class]="
+            st.active
+              ? 'border-[var(--accent)] bg-[var(--accent)] text-white'
+              : st.complete
+                ? 'border-[var(--ok)] bg-[var(--ok)] text-white'
+                : 'border-[var(--border-strong)] bg-transparent text-[var(--text-faint)]'
+          "
+        >
+          {{ st.complete ? '✓' : st.n }}
+        </span>
+        <span class="text-left leading-tight">
+          <span
+            class="block font-mono text-[10px] tracking-[.6px] text-[var(--text-faint)] uppercase"
+            >{{ st.kicker }}</span
+          >
+          <span
+            class="block text-[13.5px] font-semibold"
+            [class]="
+              st.active
+                ? 'text-[var(--text)]'
+                : st.locked
+                  ? 'text-[var(--text-faint)]'
+                  : 'text-[var(--text-muted)]'
+            "
+            >{{ st.label }}</span
+          >
+        </span>
+      </button>
+      @if (!last) {
+        <span class="mx-1 block h-[1.5px] min-w-[18px] flex-1 bg-[var(--border)]"></span>
+      }
+    }
+  </div>
+
+  <div class="grid grid-cols-[1fr_352px] items-start gap-5">
+    <!-- CARD STEP -->
+    <div
+      class="overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)]"
+    >
+      <!-- STEP 1: SERVER -->
+      @if (step() === 1) {
+        <div class="px-[22px] pt-5 pb-1.5">
+          <h2 class="m-0 mb-1 text-base font-bold tracking-tight">Scegli i Server</h2>
+          <p class="m-0 text-[13px] text-[var(--text-muted)]">
+            La destinazione del test: seleziona uno o più server. Ogni server verrà combinato con
+            ogni scenario scelto.
+          </p>
+        </div>
+        <div class="px-3.5 pt-3 pb-[18px]">
+          @if (targets().length > 0) {
+            @for (t of targets(); track t.id) {
+              @let disabled = t.status === 'offline';
+              @let sel = isTargetSelected(t.id) && !disabled;
+              <button
+                type="button"
+                (click)="toggleTarget(t)"
+                [disabled]="disabled"
+                class="mb-1.5 flex w-full items-center gap-3 rounded-[11px] border px-3.5 py-3 transition-colors"
+                [class]="
+                  (sel ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[var(--border)] bg-[var(--surface)]') +
+                  (disabled ? ' cursor-not-allowed opacity-50' : ' cursor-pointer')
+                "
+              >
+                <span
+                  class="flex h-[19px] w-[19px] flex-none items-center justify-center rounded-md border-[1.5px] text-xs font-bold text-white transition-colors"
+                  [class]="
+                    sel ? 'border-[var(--accent)] bg-[var(--accent)]' : 'border-[var(--border-strong)] bg-transparent'
+                  "
+                  >{{ sel ? '✓' : '' }}</span
+                >
+                <div class="min-w-0 flex-1 text-left">
+                  <div class="font-mono text-[13px] font-semibold text-[var(--text)]">{{ t.name }}</div>
+                  <div class="font-mono text-[11.5px] text-[var(--text-faint)]">
+                    {{ t.host }}:{{ t.port }}
+                  </div>
+                </div>
+                <span
+                  class="rounded-[20px] px-2.5 py-[3px] font-mono text-[11px] font-semibold whitespace-nowrap"
+                  [class]="
+                    t.protocol === 'HTTP/3'
+                      ? 'bg-[var(--warn-soft)] text-[var(--warn)]'
+                      : 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                  "
+                  >{{ t.protocol }}</span
+                >
+                <span class="w-[66px] text-right text-xs text-[var(--text-muted)]">{{
+                  disabled ? 'Offline' : t.status === 'online' ? 'Online' : 'Inattivo'
+                }}</span>
+              </button>
+            }
+          } @else {
+            <p class="px-2 py-8 text-center text-[13px] text-[var(--text-muted)]">
+              Nessun server disponibile. Configurane uno nella sezione Server.
+            </p>
+          }
+        </div>
+      }
+
+      <!-- STEP 2: SCENARIO -->
+      @if (step() === 2) {
+        <div class="px-[22px] pt-5 pb-1.5">
+          <h2 class="m-0 mb-1 text-base font-bold tracking-tight">Scegli lo Scenario</h2>
+          <p class="m-0 text-[13px] text-[var(--text-muted)]">
+            La pagina web da testare, riutilizzabile su più server. Puoi selezionare più scenari:
+            ognuno verrà combinato con ogni server scelto.
+          </p>
+        </div>
+        <div class="px-3.5 pt-3 pb-[18px]">
+          @if (scenarios().length > 0) {
+            @for (sc of scenarios(); track sc.id) {
+              @let sel = isScenarioSelected(sc.id);
+              <button
+                type="button"
+                (click)="toggleScenario(sc)"
+                class="mb-1.5 flex w-full items-start gap-3 rounded-[11px] border px-3.5 py-[13px] text-left transition-colors"
+                [class]="
+                  sel ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[var(--border)] bg-[var(--surface)]'
+                "
+              >
+                <span
+                  class="mt-px flex h-[19px] w-[19px] flex-none items-center justify-center rounded-md border-[1.5px] text-xs font-bold text-white transition-colors"
+                  [class]="
+                    sel ? 'border-[var(--accent)] bg-[var(--accent)]' : 'border-[var(--border-strong)] bg-transparent'
+                  "
+                  >{{ sel ? '✓' : '' }}</span
+                >
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-[9px]">
+                    <span class="text-[13.5px] font-semibold text-[var(--text)]">{{ sc.name }}</span>
+                    <span
+                      class="rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-[7px] py-px font-mono text-[11.5px] text-[var(--text-muted)]"
+                      >{{ sc.path }}</span
+                    >
+                  </div>
+                  @if (sc.desc) {
+                    <div class="mt-[3px] text-xs text-[var(--text-faint)]">{{ sc.desc }}</div>
+                  }
+                </div>
+              </button>
+            }
+          } @else {
+            <p class="px-2 py-8 text-center text-[13px] text-[var(--text-muted)]">
+              Nessuno scenario disponibile. Creane uno nella sezione Scenari.
+            </p>
+          }
+        </div>
+      }
+
+      <!-- STEP 3: CONFIGURAZIONE -->
+      @if (step() === 3) {
+        <div class="px-[22px] pt-5 pb-1.5">
+          <h2 class="m-0 mb-1 text-base font-bold tracking-tight">Configurazione</h2>
+          <p class="m-0 text-[13px] text-[var(--text-muted)]">
+            Parametri di esecuzione, comuni a tutti i test generati.
+          </p>
+        </div>
+        <div class="flex flex-col gap-5 px-[22px] pt-4 pb-5">
+          <div>
+            <label class="mb-1 block text-[13px] font-semibold text-[var(--text)]">Client</label>
+            <p class="mt-0 mb-[9px] text-xs text-[var(--text-faint)]">
+              Lo strumento che effettua le richieste. Gestisci l'elenco nella sezione Client.
+            </p>
+            <select
+              [value]="cfg().clientId"
+              (change)="setClient($any($event.target).value)"
+              class="h-11 min-w-[260px] max-w-full cursor-pointer rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[14px] text-sm font-semibold text-[var(--text)] outline-none focus:border-[var(--accent)]"
+            >
+              @if (clients().length === 0) {
+                <option value="">Nessun client disponibile</option>
+              }
+              @for (c of clients(); track c.id) {
+                <option [value]="c.id">{{ c.name }}</option>
+              }
+            </select>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-[13px] font-semibold text-[var(--text)]"
+              >Numero di ripetizioni</label
+            >
+            <p class="mt-0 mb-[9px] text-xs text-[var(--text-faint)]">
+              Quante volte eseguire ciascun test: ogni ripetizione è una misurazione.
+            </p>
+            <div class="flex max-w-[260px] items-center gap-2.5">
+              <button
+                type="button"
+                (click)="decReps()"
+                class="h-11 w-[42px] flex-none rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] text-xl text-[var(--text)] hover:border-[var(--border-strong)]"
+              >
+                –
+              </button>
+              <input
+                type="number"
+                [value]="cfg().reps"
+                (input)="setReps($any($event.target).value)"
+                min="1"
+                max="500"
+                class="h-11 min-w-0 flex-1 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] text-center font-mono text-base font-semibold text-[var(--text)] outline-none focus:border-[var(--accent)]"
+              />
+              <button
+                type="button"
+                (click)="incReps()"
+                class="h-11 w-[42px] flex-none rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] text-xl text-[var(--text)] hover:border-[var(--border-strong)]"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-[13px] font-semibold text-[var(--text)]"
+              >Timeout per richiesta</label
+            >
+            <p class="mt-0 mb-[9px] text-xs text-[var(--text-faint)]">
+              Tempo massimo di attesa prima di considerare fallita una misurazione.
+            </p>
+            <div class="flex max-w-[260px] items-center gap-2.5">
+              <input
+                type="number"
+                [value]="cfg().timeout"
+                (input)="setTimeout($any($event.target).value)"
+                min="100"
+                step="500"
+                class="h-11 min-w-0 flex-1 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[14px] font-mono text-[15px] font-semibold text-[var(--text)] outline-none focus:border-[var(--accent)]"
+              />
+              <span class="font-mono text-[13px] text-[var(--text-muted)]">ms</span>
+            </div>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-[13px] font-semibold text-[var(--text)]"
+              >Gestione della connessione</label
+            >
+            <p class="mt-0 mb-[9px] text-xs text-[var(--text-faint)]">
+              Se riutilizzare la stessa connessione o aprirne una nuova per ogni richiesta.
+            </p>
+            <div class="inline-flex gap-1 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] p-1">
+              @for (opt of connOptions; track opt.value) {
+                <button
+                  type="button"
+                  (click)="setConn(opt.value)"
+                  class="rounded-lg px-4 py-2 text-[12.5px] font-semibold transition-colors"
+                  [class]="connButtonClass(opt.value)"
+                >
+                  {{ opt.label }}
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- FOOTER NAV -->
+      <div class="flex items-center gap-3 border-t border-[var(--border)] px-5 py-4">
+        <button
+          type="button"
+          (click)="prev()"
+          [disabled]="step() === 1"
+          class="h-10 rounded-[10px] border border-[var(--border)] bg-transparent px-[18px] text-[13.5px] font-semibold text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          Indietro
+        </button>
+        <button
+          type="button"
+          (click)="reset()"
+          class="h-10 rounded-[10px] bg-transparent px-3 text-[13.5px] font-semibold text-[var(--text-muted)] hover:text-[var(--text)]"
+        >
+          Reset
+        </button>
+        <div class="flex-1"></div>
+        <span class="font-mono text-[11.5px] text-[var(--text-faint)]">Passo {{ step() }} di 3</span>
+        @if (step() < 3) {
+          <button
+            type="button"
+            (click)="next()"
+            [disabled]="nextDisabled()"
+            class="h-10 rounded-[10px] border-none px-[22px] text-[13.5px] font-semibold text-white transition-colors disabled:cursor-not-allowed"
+            [class]="nextDisabled() ? 'bg-[var(--border-strong)]' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'"
+          >
+            Avanti
+          </button>
+        } @else {
+          <button
+            type="button"
+            (click)="create()"
+            [disabled]="createDisabled()"
+            class="h-10 rounded-[10px] border-none px-[22px] text-[13.5px] font-semibold text-white transition-colors disabled:cursor-not-allowed"
+            [class]="createDisabled() ? 'bg-[var(--border-strong)]' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'"
+          >
+            {{ creating() ? 'Creazione…' : 'Crea sessione' }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- RIGHT: RIEPILOGO + SESSIONE -->
+    <div class="flex flex-col gap-5">
+      <div
+        class="overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)]"
+      >
+        <div class="border-b border-[var(--border)] px-5 py-4">
+          <h2 class="m-0 text-[15px] font-semibold">Riepilogo</h2>
+        </div>
+        <div class="px-5 pt-1.5 pb-3.5">
+          @for (row of summaryRows(); track row.label) {
+            <div
+              class="flex items-baseline justify-between gap-3 border-b border-[var(--border)] py-[9px] last:border-b-0"
+            >
+              <span class="text-[12.5px] text-[var(--text-muted)]">{{ row.label }}</span>
+              <span
+                class="text-right font-mono text-[12.5px] font-medium"
+                [class]="row.dim ? 'text-[var(--text-faint)]' : 'text-[var(--text)]'"
+                >{{ row.value }}</span
+              >
+            </div>
+          }
+        </div>
+      </div>
+
+      <div
+        class="overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)]"
+      >
+        <div class="border-b border-[var(--border)] px-5 py-4">
+          <h2 class="m-0 mb-[3px] text-[15px] font-semibold">Sessione di test</h2>
+          <p class="m-0 text-[12.5px] leading-normal text-[var(--text-muted)]">
+            Al termine, il flusso crea una sessione con tutti i test generati, pronta da avviare.
+          </p>
+        </div>
+        <div class="px-5 py-[18px]">
+          <label
+            class="mb-2 block font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+            >Nome sessione</label
+          >
+          <input
+            [value]="sessionName()"
+            (input)="setSessionName($any($event.target).value)"
+            placeholder="Lascia vuoto per un nome automatico"
+            class="h-11 w-full rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[14px] text-sm text-[var(--text)] outline-none focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)]"
+          />
+          <div
+            class="mt-4 flex items-center gap-2.5 rounded-[11px] border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-[13px]"
+          >
+            <span
+              class="flex h-8 w-8 flex-none items-center justify-center rounded-[9px] bg-[var(--accent-soft)] font-mono text-[15px] font-bold text-[var(--accent)]"
+              >⧉</span
+            >
+            <span class="text-[13px] leading-snug text-[var(--text)]">{{ sessionPreview() }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

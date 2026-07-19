@@ -1,0 +1,333 @@
+<div class="mx-auto max-w-[1080px]">
+  <div class="mb-[22px]">
+    <h1 class="m-0 mb-[5px] text-2xl font-bold tracking-tight">Sessioni di test</h1>
+    <p class="m-0 text-sm text-[var(--text-muted)]">
+      Raggruppa più test ed eseguili in sequenza, uno dopo l'altro. Crea una nuova sessione dalla
+      sezione <strong class="text-[var(--text)]">Nuova sessione</strong>.
+    </p>
+  </div>
+
+  @if (!loaded() && loading()) {
+    <div
+      class="flex items-center gap-3 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-6 py-8 text-sm text-[var(--text-muted)] shadow-[var(--shadow-sm)]"
+    >
+      <span
+        class="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)]"
+      ></span>
+      Caricamento delle sessioni…
+    </div>
+  } @else {
+    <!-- AVANZAMENTO SESSIONE IN ESECUZIONE (polling ogni 2s) -->
+    @if (activeProgress(); as prog) {
+      <div
+        class="mb-5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)]"
+      >
+        <div class="border-b border-[var(--border)] px-[22px] py-[18px]">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-3.5">
+            <div>
+              <h2 class="m-0 mb-[3px] text-[15px] font-semibold">{{ prog.name }}</h2>
+              <p class="m-0 text-[12.5px] font-semibold text-[var(--accent)]">
+                {{ prog.counterText }}
+              </p>
+            </div>
+            <span class="font-mono text-xs text-[var(--text-muted)]">{{ prog.doneText }}</span>
+          </div>
+          <div class="h-[9px] overflow-hidden rounded-[5px] bg-[var(--surface-2)]">
+            <div
+              class="h-full rounded-[5px] bg-[var(--accent)] transition-[width] duration-500"
+              [style.width.%]="prog.overallPct"
+            ></div>
+          </div>
+        </div>
+        <div class="px-[22px] pt-1.5 pb-3.5">
+          @for (it of prog.items; track it.label) {
+            <div class="border-b border-[var(--border)] py-3.5 last:border-b-0">
+              <div class="mb-2.5 flex items-center gap-[11px]">
+                <span class="h-[9px] w-[9px] flex-none rounded-full" [class]="it.dotClass"></span>
+                <span class="flex-1 font-mono text-[13px] font-semibold text-[var(--text)]">{{
+                  it.label
+                }}</span>
+                <span
+                  class="inline-block rounded-[20px] px-2.5 py-[3px] text-[11.5px] font-semibold whitespace-nowrap"
+                  [class]="it.badgeClass"
+                  >{{ it.statusLabel }}</span
+                >
+              </div>
+              <div class="h-[7px] overflow-hidden rounded-[5px] bg-[var(--surface-2)]">
+                <div
+                  class="h-full rounded-[5px] transition-[width] duration-500"
+                  [class]="it.barClass"
+                  [style.width.%]="it.pct"
+                ></div>
+              </div>
+              <div
+                class="mt-[7px] flex justify-between font-mono text-[11px] text-[var(--text-faint)]"
+              >
+                <span>{{ it.progressText }}</span>
+                <span>{{ it.pct }}%</span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- ELENCO SESSIONI -->
+    <div class="mb-3.5 flex items-center justify-between">
+      <h2 class="m-0 text-[15px] font-semibold">Tutte le sessioni</h2>
+      <span class="font-mono text-xs text-[var(--text-muted)]">{{ sessionCount() }} sessioni</span>
+    </div>
+
+    @if (hasSessions()) {
+      <div class="flex flex-col gap-3.5">
+        @for (card of cards(); track card.session.id) {
+          <div
+            class="rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-5 py-[18px] shadow-[var(--shadow-sm)]"
+          >
+            <div class="mb-3.5 flex flex-wrap items-start gap-3.5">
+              <div class="min-w-0 flex-1">
+                <div class="mb-1 flex items-center gap-2.5">
+                  <h3 class="m-0 text-[15.5px] font-semibold text-[var(--text)]">
+                    {{ card.session.name }}
+                  </h3>
+                  <span
+                    class="inline-block rounded-[20px] px-2.5 py-[3px] text-[11.5px] font-semibold whitespace-nowrap"
+                    [class]="card.badgeClass"
+                    >{{ card.statusLabel }}</span
+                  >
+                </div>
+                <p class="m-0 font-mono text-xs text-[var(--text-faint)]">{{ card.metaText }}</p>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2">
+                @if (card.session.status === 'pending') {
+                  <button
+                    type="button"
+                    (click)="avvia(card.session)"
+                    class="h-9 rounded-[9px] border-none bg-[var(--accent)] px-4 text-[12.5px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
+                  >
+                    Avvia
+                  </button>
+                  <button
+                    type="button"
+                    (click)="openEdit(card.session)"
+                    class="h-9 rounded-[9px] border border-[var(--border)] bg-[var(--surface-2)] px-4 text-[12.5px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--border-strong)]"
+                  >
+                    Modifica
+                  </button>
+                }
+                @if (card.session.status === 'completed') {
+                  <button
+                    type="button"
+                    (click)="relaunch(card.session)"
+                    class="h-9 rounded-[9px] border-none bg-[var(--accent)] px-4 text-[12.5px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
+                  >
+                    Rilancia
+                  </button>
+                  <button
+                    type="button"
+                    (click)="openRepropose(card.session)"
+                    class="h-9 rounded-[9px] border border-[var(--border)] bg-[var(--surface-2)] px-4 text-[12.5px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--border-strong)]"
+                  >
+                    Modifica e riproponi
+                  </button>
+                }
+                <button
+                  type="button"
+                  (click)="askDelete(card.session)"
+                  title="Elimina sessione"
+                  class="flex h-9 w-9 flex-none items-center justify-center rounded-[9px] border border-[var(--border)] bg-[var(--surface-2)] text-[15px] text-[var(--text-muted)] transition-colors hover:border-[var(--danger)] hover:text-[var(--danger)]"
+                >
+                  🗑
+                </button>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              @for (ch of card.chips; track $index) {
+                <div
+                  class="flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[11px] py-1.5"
+                >
+                  <span class="font-mono text-xs font-semibold text-[var(--text)]">{{
+                    ch.label
+                  }}</span>
+                  <span
+                    class="rounded-[20px] px-2 py-0.5 font-mono text-[10px] font-semibold"
+                    [class]="ch.protoClass"
+                    >{{ ch.proto }}</span
+                  >
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    } @else {
+      <div
+        class="rounded-[14px] border border-dashed border-[var(--border-strong)] bg-[var(--surface)] px-6 py-[52px] text-center"
+      >
+        <p class="m-0 text-sm text-[var(--text-muted)]">Nessuna sessione ancora.</p>
+        <p class="mt-1.5 mb-0 text-[12.5px] text-[var(--text-faint)]">
+          Vai su
+          <a routerLink="/new-session" class="text-[var(--accent)] hover:text-[var(--accent-hover)]"
+            >Nuova sessione</a
+          >
+          per crearne una combinando server e scenari.
+        </p>
+      </div>
+    }
+  }
+</div>
+
+<!-- MODAL: modifica / modifica e riproponi -->
+@if (editorOpen()) {
+  <div
+    class="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-6 backdrop-blur-sm"
+    (click)="closeEditor()"
+  >
+    <div
+      class="flex max-h-[86vh] w-[520px] max-w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[0_24px_70px_rgba(15,18,26,.3)]"
+      (click)="$event.stopPropagation()"
+    >
+      <div
+        class="flex items-start justify-between gap-3.5 border-b border-[var(--border)] px-6 py-[22px]"
+      >
+        <div>
+          <h2 class="m-0 mb-1 text-[17px] font-bold tracking-tight">{{ editorTitle() }}</h2>
+          <p class="m-0 text-[13px] leading-normal text-[var(--text-muted)]">{{ editorSub() }}</p>
+        </div>
+        <button
+          type="button"
+          (click)="closeEditor()"
+          class="h-[34px] w-[34px] flex-none rounded-[9px] border border-[var(--border)] bg-[var(--surface-2)] text-[15px] text-[var(--text-muted)] hover:text-[var(--text)]"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="qmain flex-1 overflow-y-auto px-6 py-[18px]">
+        @if (editorItems().length > 0) {
+          @for (item of editorItems(); track item.sessionItemId; let i = $index; let last = $last) {
+            <div
+              class="mb-2 flex items-center gap-[11px] rounded-[11px] border border-[var(--border)] bg-[var(--surface-2)] px-3 py-[11px]"
+            >
+              <span
+                class="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-[var(--accent-soft)] font-mono text-xs font-bold text-[var(--accent)]"
+                >{{ i + 1 }}</span
+              >
+              <div class="min-w-0 flex-1">
+                <div class="truncate font-mono text-[13px] font-semibold text-[var(--text)]">
+                  {{ item.label }}
+                </div>
+                <div class="text-[11.5px] text-[var(--text-faint)]">{{ itemMeta(item) }}</div>
+              </div>
+              <button
+                type="button"
+                (click)="moveItem(i, -1)"
+                [disabled]="i === 0"
+                title="Sposta su"
+                class="flex h-[30px] w-[30px] flex-none items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[13px] text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                (click)="moveItem(i, 1)"
+                [disabled]="last"
+                title="Sposta giù"
+                class="flex h-[30px] w-[30px] flex-none items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[13px] text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ↓
+              </button>
+              <button
+                type="button"
+                (click)="removeItem(i)"
+                title="Rimuovi"
+                class="flex h-[30px] w-[30px] flex-none items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[13px] text-[var(--danger)] hover:border-[var(--danger)]"
+              >
+                ✕
+              </button>
+            </div>
+          }
+        } @else {
+          <div
+            class="rounded-xl border border-dashed border-[var(--border-strong)] px-5 py-9 text-center"
+          >
+            <p class="m-0 text-[13px] text-[var(--text-muted)]">Nessun item nella sessione.</p>
+            <p class="mt-[5px] mb-0 text-xs text-[var(--text-faint)]">
+              Rimuovendo tutti gli item non sarà possibile salvare.
+            </p>
+          </div>
+        }
+      </div>
+
+      <div class="flex items-center gap-3 border-t border-[var(--border)] px-6 py-4">
+        <span class="font-mono text-[12.5px] text-[var(--text-muted)]">{{ editorTotalText() }}</span>
+        <div class="flex-1"></div>
+        <button
+          type="button"
+          (click)="closeEditor()"
+          class="h-11 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[18px] text-sm font-semibold text-[var(--text)]"
+        >
+          Annulla
+        </button>
+        <button
+          type="button"
+          (click)="saveEditor()"
+          [disabled]="editorSaveDisabled()"
+          class="h-11 rounded-[10px] border-none px-[18px] text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed"
+          [class]="
+            editorSaveDisabled()
+              ? 'bg-[var(--border-strong)]'
+              : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'
+          "
+        >
+          {{ editorSaveLabel() }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- CONFERMA ELIMINAZIONE SESSIONE -->
+@if (confirmDeleteOpen()) {
+  <div
+    class="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-6 backdrop-blur-sm"
+    (click)="cancelDelete()"
+  >
+    <div
+      class="w-[420px] max-w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-[26px] shadow-[0_24px_70px_rgba(15,18,26,.3)]"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="mb-3.5 flex items-center gap-[13px]">
+        <span
+          class="flex h-[42px] w-[42px] flex-none items-center justify-center rounded-[11px] bg-[var(--danger-soft)] text-[19px] text-[var(--danger)]"
+          >🗑</span
+        >
+        <h2 class="m-0 text-[17px] font-bold tracking-tight text-[var(--text)]">
+          Eliminare la sessione?
+        </h2>
+      </div>
+      <p class="m-0 mb-[22px] text-[13.5px] leading-relaxed text-[var(--text-muted)]">
+        Stai per rimuovere <strong class="text-[var(--text)]">{{ confirmDeleteName() }}</strong>
+        dallo storico. L'operazione è definitiva e non può essere annullata.
+      </p>
+      <div class="flex gap-2.5">
+        <button
+          type="button"
+          (click)="cancelDelete()"
+          class="h-[46px] flex-1 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] text-sm font-semibold text-[var(--text)]"
+        >
+          Annulla
+        </button>
+        <button
+          type="button"
+          (click)="confirmDelete()"
+          class="h-[46px] flex-1 rounded-[10px] border-none bg-[var(--danger)] text-sm font-semibold text-white transition-[filter] hover:brightness-95"
+        >
+          Elimina
+        </button>
+      </div>
+    </div>
+  </div>
+}

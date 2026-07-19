@@ -1,0 +1,10 @@
+<div
+  [attr.data-theme]="theme()"
+  class="grid h-screen grid-cols-[236px_1fr] bg-[var(--bg)] text-[14px] text-[var(--text)] transition-colors duration-200"
+>
+  <app-sidebar />
+
+  <main class="qmain overflow-y-auto px-10 pt-[34px] pb-14">
+    <router-outlet />
+  </main>
+</div>

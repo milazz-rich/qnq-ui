@@ -1,0 +1,250 @@
+<div class="mx-auto max-w-[1080px]">
+  <!-- intestazione -->
+  <div class="mb-[22px]">
+    <h1 class="m-0 mb-[5px] text-2xl font-bold tracking-tight">Dashboard</h1>
+    <p class="m-0 text-sm text-[var(--text-muted)]">
+      Panoramica del banco di prova · {{ todayLabel() }}
+    </p>
+  </div>
+
+  @if (!loaded() && loading()) {
+    <!-- stato di caricamento -->
+    <div
+      class="flex items-center gap-3 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-6 py-8 text-sm text-[var(--text-muted)] shadow-[var(--shadow-sm)]"
+    >
+      <span
+        class="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)]"
+      ></span>
+      Caricamento della panoramica…
+    </div>
+  } @else {
+    <!-- avvio rapido -->
+    <div
+      class="mb-5 flex flex-wrap items-center gap-6 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-[22px] py-5 shadow-[var(--shadow-sm)]"
+    >
+      <div class="min-w-[240px] flex-1">
+        <h2 class="m-0 mb-[11px] text-base font-bold tracking-tight">
+          Avvia una nuova sessione di test
+        </h2>
+        <div class="flex flex-wrap items-center gap-2">
+          @for (step of quickFlow; track step.n; let last = $last) {
+            <span
+              class="inline-flex h-[30px] items-center gap-[7px] rounded-[20px] border border-[var(--border)] bg-[var(--surface-2)] px-3 text-[12.5px] font-semibold text-[var(--text-muted)]"
+            >
+              <span class="font-mono text-[11px] text-[var(--accent)]">{{ step.n }}</span
+              >{{ step.label }}
+            </span>
+            @if (!last) {
+              <span class="text-[13px] text-[var(--text-faint)]">→</span>
+            }
+          }
+        </div>
+      </div>
+      <a
+        routerLink="/new-session"
+        class="flex h-11 flex-none items-center rounded-[10px] bg-[var(--accent)] px-[22px] text-sm font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
+        >+ Nuova sessione</a
+      >
+    </div>
+
+    <!-- card entità -->
+    <div class="mb-5 grid grid-cols-3 gap-4">
+      <!-- Server -->
+      <a
+        routerLink="/servers"
+        class="rounded-[14px] border border-[var(--border)] bg-[var(--surface)] p-[18px] shadow-[var(--shadow-sm)] transition-colors hover:border-[var(--border-strong)]"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <span class="text-[12.5px] text-[var(--text-muted)]">Server (target)</span>
+          <span class="text-[13px] text-[var(--text-faint)]">→</span>
+        </div>
+        <div class="mb-3 flex items-baseline gap-[7px]">
+          <span class="text-[28px] font-bold tracking-tight text-[var(--text)]">{{
+            serverCount()
+          }}</span>
+          <span class="text-[12.5px] text-[var(--text-muted)]">configurati</span>
+        </div>
+        <div
+          class="flex flex-wrap items-center gap-3 font-mono text-[11.5px] text-[var(--text-muted)]"
+        >
+          <span class="flex items-center gap-1.5"
+            ><span class="h-[7px] w-[7px] rounded-full bg-[var(--ok)]"></span>{{ onlineCount() }}
+            online</span
+          >
+          <span class="flex items-center gap-1.5"
+            ><span class="h-[7px] w-[7px] rounded-full bg-[var(--warn)]"></span>{{ idleCount() }}
+            inattivi</span
+          >
+          <span class="flex items-center gap-1.5"
+            ><span class="h-[7px] w-[7px] rounded-full bg-[var(--text-faint)]"></span
+            >{{ offlineCount() }} offline</span
+          >
+        </div>
+      </a>
+
+      <!-- Scenari -->
+      <a
+        routerLink="/scenarios"
+        class="rounded-[14px] border border-[var(--border)] bg-[var(--surface)] p-[18px] shadow-[var(--shadow-sm)] transition-colors hover:border-[var(--border-strong)]"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <span class="text-[12.5px] text-[var(--text-muted)]">Scenari</span>
+          <span class="text-[13px] text-[var(--text-faint)]">→</span>
+        </div>
+        <div class="mb-3 flex items-baseline gap-[7px]">
+          <span class="text-[28px] font-bold tracking-tight text-[var(--text)]">{{
+            scenarioCount()
+          }}</span>
+          <span class="text-[12.5px] text-[var(--text-muted)]">disponibili</span>
+        </div>
+        <div class="text-[11.5px] text-[var(--text-faint)]">
+          {{ scenarioTagCount() }} etichette · riutilizzabili su ogni server
+        </div>
+      </a>
+
+      <!-- Client -->
+      <a
+        routerLink="/clients"
+        class="rounded-[14px] border border-[var(--border)] bg-[var(--surface)] p-[18px] shadow-[var(--shadow-sm)] transition-colors hover:border-[var(--border-strong)]"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <span class="text-[12.5px] text-[var(--text-muted)]">Client</span>
+          <span class="text-[13px] text-[var(--text-faint)]">→</span>
+        </div>
+        <div class="mb-3 flex items-baseline gap-[7px]">
+          <span class="text-[28px] font-bold tracking-tight text-[var(--text)]">{{
+            clientCount()
+          }}</span>
+          <span class="text-[12.5px] text-[var(--text-muted)]">definiti</span>
+        </div>
+        <div class="truncate font-mono text-[11.5px] text-[var(--text-faint)]">
+          {{ clientNames() || '—' }}
+        </div>
+      </a>
+    </div>
+
+    <!-- due colonne -->
+    <div class="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] items-start gap-5">
+      <!-- sessioni recenti -->
+      <div
+        class="overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)]"
+      >
+        <div class="flex items-center justify-between border-b border-[var(--border)] px-5 py-[18px]">
+          <h2 class="m-0 text-[15px] font-semibold">Sessioni recenti</h2>
+          <a
+            routerLink="/sessions"
+            class="p-0 text-[13px] font-medium text-[var(--accent)] hover:text-[var(--accent-hover)]"
+            >Tutte le sessioni</a
+          >
+        </div>
+        @if (hasSessions()) {
+          @for (se of recentSessions(); track se.id) {
+            <a
+              routerLink="/sessions"
+              class="flex items-center gap-3.5 border-b border-[var(--border)] px-5 py-3.5 transition-colors hover:bg-[var(--surface-2)]"
+            >
+              <span class="h-2 w-2 flex-none rounded-full" [class]="se.dotClass"></span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-[9px]">
+                  <span class="truncate text-[13.5px] font-semibold text-[var(--text)]">{{
+                    se.name
+                  }}</span>
+                  <span
+                    class="inline-block rounded-[20px] px-2.5 py-[3px] text-[11.5px] font-semibold whitespace-nowrap"
+                    [class]="se.badgeClass"
+                    >{{ se.statusLabel }}</span
+                  >
+                </div>
+                <div class="mt-[3px] font-mono text-[11.5px] text-[var(--text-faint)]">
+                  {{ se.metaText }}
+                </div>
+                @if (se.running) {
+                  <div class="mt-2 h-[5px] overflow-hidden rounded-[3px] bg-[var(--bg-2)]">
+                    <div
+                      class="h-full rounded-[3px] bg-[var(--accent)]"
+                      [style.width.%]="se.pct"
+                    ></div>
+                  </div>
+                }
+              </div>
+              <span class="flex-none text-[13px] text-[var(--text-faint)]">→</span>
+            </a>
+          }
+        } @else {
+          <div class="px-5 py-11 text-center">
+            <p class="m-0 text-[13.5px] text-[var(--text-muted)]">Nessuna sessione ancora.</p>
+            <p class="mt-1.5 mb-0 text-[12.5px] text-[var(--text-faint)]">
+              Crea la prima sessione per iniziare a misurare.
+            </p>
+          </div>
+        }
+      </div>
+
+      <!-- confronto HTTP/2 vs HTTP/3 -->
+      <div
+        class="overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)]"
+      >
+        <div class="flex items-center justify-between border-b border-[var(--border)] px-5 py-[18px]">
+          <h2 class="m-0 text-[15px] font-semibold">HTTP/2 vs HTTP/3</h2>
+          <a
+            routerLink="/results"
+            class="p-0 text-[13px] font-medium text-[var(--accent)] hover:text-[var(--accent-hover)]"
+            >Analisi</a
+          >
+        </div>
+        @if (hasCompare()) {
+          <div class="px-5 pt-4 pb-1.5">
+            <div class="mb-1.5">
+              <span
+                class="inline-flex items-center gap-[7px] rounded-[20px] px-[13px] py-[5px] text-[12px] font-bold"
+                [class]="overallBadgeClass()"
+                >{{ overallText() }}</span
+              >
+            </div>
+            @for (c of compareRows(); track c.label) {
+              <div class="border-t border-[var(--border)] py-[13px]">
+                <div class="mb-2 text-[12px] text-[var(--text-muted)]">{{ c.label }}</div>
+                <div class="flex items-end gap-3.5">
+                  <div class="min-w-0 flex-1">
+                    <div class="font-mono text-[10px] tracking-[.5px] text-[var(--text-faint)]">
+                      HTTP/2
+                    </div>
+                    <div
+                      class="font-mono text-[22px] font-bold"
+                      [class]="c.h2Winner ? 'text-[var(--text)]' : 'text-[var(--text-faint)]'"
+                    >
+                      {{ c.h2Text }}
+                    </div>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="font-mono text-[10px] tracking-[.5px] text-[var(--text-faint)]">
+                      HTTP/3
+                    </div>
+                    <div
+                      class="font-mono text-[22px] font-bold"
+                      [class]="c.h3Winner ? 'text-[var(--text)]' : 'text-[var(--text-faint)]'"
+                    >
+                      {{ c.h3Text }}
+                    </div>
+                  </div>
+                  <span
+                    class="mb-1 inline-flex items-center gap-1.5 rounded-[20px] px-[11px] py-1 text-[11.5px] font-bold"
+                    [class]="rowBadgeClass(c.winner)"
+                    >{{ c.deltaText }}</span
+                  >
+                </div>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="px-5 py-11 text-center">
+            <p class="m-0 text-[13.5px] text-[var(--text-muted)]">Nessun dato di confronto.</p>
+            <p class="mt-1.5 mb-0 text-[12.5px] text-[var(--text-faint)]">
+              Servono risultati completati su entrambi i protocolli.
+            </p>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>

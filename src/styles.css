@@ -1,3 +1,66 @@
 /* You can add global styles to this file, and also import other style files */
 
 @import 'tailwindcss';
+
+:root {
+  --bg: #f4f6f8;
+  --bg-2: #eceef2;
+  --surface: #ffffff;
+  --surface-2: #f6f8fa;
+  --border: #e4e7ec;
+  --border-strong: #d3d8df;
+  --text: #0e1116;
+  --text-muted: #5c6673;
+  --text-faint: #98a1ad;
+  --accent: #2f6bf0;
+  --accent-hover: #2359d4;
+  --accent-soft: #e9f1fe;
+  --danger: #d43b3b;
+  --danger-soft: #fcecec;
+  --ok: #2fa06a;
+  --ok-soft: #e7f5ee;
+  --warn: #c98a19;
+  --warn-soft: #fbf1dd;
+  --shadow: 0 1px 2px rgba(16, 19, 25, .05), 0 10px 28px -10px rgba(16, 19, 25, .14);
+  --shadow-sm: 0 1px 2px rgba(16, 19, 25, .06);
+  --shadow-lg: 0 8px 24px -6px rgba(16, 19, 25, .18), 0 24px 60px -20px rgba(16, 19, 25, .30);
+}
+
+[data-theme='dark'] {
+  --bg: #0a0c10;
+  --bg-2: #0f1216;
+  --surface: #14181f;
+  --surface-2: #1a1f27;
+  --border: #262c35;
+  --border-strong: #343c47;
+  --text: #eef1f5;
+  --text-muted: #98a2af;
+  --text-faint: #69727f;
+  --accent: #5b8dff;
+  --accent-hover: #7aa3ff;
+  --accent-soft: #182741;
+  --danger: #ff6f6f;
+  --danger-soft: #2a1618;
+  --ok: #43c088;
+  --ok-soft: #122a20;
+  --warn: #e6b34d;
+  --warn-soft: #2a2211;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 16px 40px -14px rgba(0, 0, 0, .7);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow-lg: 0 12px 40px -8px rgba(0, 0, 0, .6), 0 30px 80px -24px rgba(0, 0, 0, .8);
+}
+
+body {
+  margin: 0;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+input::placeholder {
+  color: var(--text-faint);
+}
+
+input:-webkit-autofill {
+  -webkit-text-fill-color: var(--text);
+  transition: background-color 9999s;
+}

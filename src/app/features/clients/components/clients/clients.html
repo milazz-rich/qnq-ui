@@ -1,0 +1,179 @@
+<div class="mx-auto max-w-[1080px]">
+  <div class="mb-[26px] flex flex-wrap items-start justify-between gap-5">
+    <div>
+      <h1 class="m-0 mb-[5px] text-2xl font-bold tracking-tight">Client</h1>
+      <p class="m-0 text-sm text-[var(--text-muted)]">{{ clientCount() }} client definiti</p>
+    </div>
+    <button
+      type="button"
+      (click)="openAdd()"
+      class="h-[42px] rounded-[10px] bg-[var(--accent)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
+    >
+      + Nuovo client
+    </button>
+  </div>
+
+  @if (!loaded() && loading()) {
+    <div
+      class="flex items-center gap-3 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-6 py-8 text-sm text-[var(--text-muted)] shadow-[var(--shadow-sm)]"
+    >
+      <span
+        class="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)]"
+      ></span>
+      Caricamento dei client…
+    </div>
+  } @else {
+    <div
+      class="overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)]"
+    >
+      <div
+        class="grid grid-cols-[1fr_96px] gap-3 border-b border-[var(--border)] bg-[var(--surface-2)] px-[22px] py-3 font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+      >
+        <span>Nome</span><span></span>
+      </div>
+
+      @if (sortedClients().length > 0) {
+        @for (cl of sortedClients(); track cl.id) {
+          <div
+            class="grid grid-cols-[1fr_96px] items-center gap-3 border-b border-[var(--border)] px-[22px] py-[15px] last:border-b-0"
+          >
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="h-2 w-2 flex-none rounded-full bg-[var(--accent)]"></span>
+              <span class="truncate font-mono text-[13px] font-semibold text-[var(--text)]">{{
+                cl.name
+              }}</span>
+            </div>
+            <button
+              type="button"
+              (click)="openEdit(cl)"
+              class="h-8 justify-self-end rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3.5 text-[12.5px] font-medium text-[var(--text)] transition-colors hover:border-[var(--border-strong)]"
+            >
+              Modifica
+            </button>
+          </div>
+        }
+      } @else {
+        <div class="px-5 py-11 text-center">
+          <p class="m-0 text-[13.5px] text-[var(--text-muted)]">Nessun client definito.</p>
+          <p class="mt-1.5 mb-0 text-[12.5px] text-[var(--text-faint)]">
+            Aggiungi il primo client per poterlo usare nelle sessioni di test.
+          </p>
+        </div>
+      }
+    </div>
+  }
+</div>
+
+<!-- DRAWER: aggiungi / modifica client -->
+@if (editorOpen()) {
+  <div class="fixed inset-0 z-40 flex justify-end">
+    <div class="absolute inset-0 bg-black/40" (click)="closeEditor()"></div>
+    <div
+      class="relative flex h-full w-[440px] max-w-[92vw] flex-col border-l border-[var(--border)] bg-[var(--bg)] shadow-[var(--shadow-lg)]"
+    >
+      <div
+        class="flex items-center justify-between border-b border-[var(--border)] px-[26px] py-[22px]"
+      >
+        <div>
+          <h2 class="m-0 mb-[3px] text-[17px] font-bold tracking-tight text-[var(--text)]">
+            {{ editorTitle() }}
+          </h2>
+          <p class="m-0 text-[12.5px] text-[var(--text-muted)]">{{ editorSub() }}</p>
+        </div>
+        <button
+          type="button"
+          (click)="closeEditor()"
+          class="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[9px] border border-[var(--border)] bg-[var(--surface-2)] text-base text-[var(--text-muted)] hover:text-[var(--text)]"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="qmain flex flex-1 flex-col gap-[18px] overflow-y-auto px-[26px] py-6">
+        <div>
+          <label class="mb-[7px] block text-[13px] font-medium text-[var(--text-muted)]"
+            >Nome</label
+          >
+          <input
+            [value]="draft().name"
+            (input)="setName($any($event.target).value)"
+            placeholder="es. curl, Chrome, Firefox"
+            class="h-11 w-full rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[14px] font-mono text-sm text-[var(--text)] outline-none focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)]"
+          />
+        </div>
+
+        @if (editorMode() === 'edit') {
+          <button
+            type="button"
+            (click)="askDelete()"
+            class="mt-0.5 h-10 flex-none self-start rounded-[10px] bg-[var(--danger-soft)] px-4 text-[13px] font-semibold whitespace-nowrap text-[var(--danger)]"
+          >
+            Elimina client
+          </button>
+        }
+      </div>
+
+      <div class="flex gap-3 border-t border-[var(--border)] px-[26px] py-[18px]">
+        <button
+          type="button"
+          (click)="closeEditor()"
+          class="h-[46px] flex-1 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] text-sm font-semibold text-[var(--text)] hover:border-[var(--border-strong)]"
+        >
+          Annulla
+        </button>
+        <button
+          type="button"
+          [disabled]="saveDisabled()"
+          (click)="saveDraft()"
+          class="h-[46px] flex-1 rounded-[10px] border-none text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed"
+          [class]="saveDisabled() ? 'bg-[var(--border-strong)]' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'"
+        >
+          {{ saveLabel() }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- CONFERMA ELIMINAZIONE CLIENT -->
+@if (confirmDeleteOpen()) {
+  <div
+    class="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-6 backdrop-blur-sm"
+    (click)="cancelDelete()"
+  >
+    <div
+      class="w-[420px] max-w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-[26px] shadow-[0_24px_70px_rgba(15,18,26,.3)]"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="mb-3.5 flex items-center gap-[13px]">
+        <span
+          class="flex h-[42px] w-[42px] flex-none items-center justify-center rounded-[11px] bg-[var(--danger-soft)] text-[19px] text-[var(--danger)]"
+          >🗑</span
+        >
+        <h2 class="m-0 text-[17px] font-bold tracking-tight text-[var(--text)]">
+          Eliminare il client?
+        </h2>
+      </div>
+      <p class="m-0 mb-[22px] text-[13.5px] leading-relaxed text-[var(--text-muted)]">
+        Stai per eliminare <strong class="text-[var(--text)]">{{ confirmDeleteName() }}</strong>
+        dall'elenco. L'operazione è definitiva e non può essere annullata.
+      </p>
+      <div class="flex gap-2.5">
+        <button
+          type="button"
+          (click)="cancelDelete()"
+          class="h-[46px] flex-1 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] text-sm font-semibold text-[var(--text)]"
+        >
+          Annulla
+        </button>
+        <button
+          type="button"
+          (click)="confirmDelete()"
+          class="h-[46px] flex-1 rounded-[10px] border-none bg-[var(--danger)] text-sm font-semibold text-white transition-[filter] hover:brightness-95"
+        >
+          Elimina
+        </button>
+      </div>
+    </div>
+  </div>
+}

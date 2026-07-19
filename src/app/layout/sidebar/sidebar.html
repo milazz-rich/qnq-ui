@@ -1,0 +1,96 @@
+<aside
+  class="flex h-full flex-col border-r border-[var(--border)] bg-[var(--surface)] px-4 py-[22px]"
+>
+  <div class="flex items-baseline gap-[9px] px-2.5 pt-1 pb-[26px]">
+    <span class="font-mono text-lg font-semibold tracking-tight text-[var(--text)]"
+      >qnq<span class="text-[var(--accent)]">.</span></span
+    >
+    <span class="font-mono text-[11px] text-[var(--text-faint)]">ui</span>
+  </div>
+
+  <div
+    class="px-2.5 pb-2.5 font-mono text-[10px] tracking-[1px] text-[var(--text-faint)] uppercase"
+  >
+    Aree
+  </div>
+
+  <nav class="flex flex-col gap-[3px]">
+    @for (item of navItems; track item.link) {
+      <a
+        [routerLink]="item.link"
+        routerLinkActive="bg-[var(--accent-soft)] !text-[var(--accent)] !font-semibold [&>span:first-child]:!bg-[var(--accent)]"
+        [routerLinkActiveOptions]="{ exact: item.exact }"
+        class="flex w-full items-center gap-[11px] rounded-[9px] px-2.5 py-2.5 text-[13.5px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-2)]"
+      >
+        <span class="h-1.5 w-1.5 rounded-[2px] bg-[var(--text-faint)] transition-colors"></span>
+        <span class="flex-1 text-left">{{ item.label }}</span>
+      </a>
+    }
+  </nav>
+
+  <!-- spinge tema + utente in fondo -->
+  <div class="flex-1"></div>
+
+  <!-- toggle tema -->
+  <div
+    class="mx-1 mb-3.5 flex gap-1 rounded-[10px] border border-[var(--border)] bg-[var(--bg-2)] p-1"
+  >
+    <button
+      type="button"
+      (click)="setTheme('light')"
+      class="flex-1 rounded-lg py-[7px] text-[13px] font-semibold transition-colors"
+      [class]="lightSegmentClass()"
+    >
+      Chiaro
+    </button>
+    <button
+      type="button"
+      (click)="setTheme('dark')"
+      class="flex-1 rounded-lg py-[7px] text-[13px] font-semibold transition-colors"
+      [class]="darkSegmentClass()"
+    >
+      Scuro
+    </button>
+  </div>
+
+  <!-- menu utente -->
+  <div class="relative border-t border-[var(--border)]">
+    @if (userMenuOpen()) {
+      <div class="fixed inset-0 z-40" (click)="closeUserMenu()"></div>
+    }
+    <button
+      type="button"
+      (click)="toggleUserMenu()"
+      class="relative z-50 flex w-full items-center gap-2.5 rounded-[10px] border-none bg-transparent p-2.5 text-left transition-colors hover:bg-[var(--bg-2)]"
+    >
+      <span
+        class="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[13px] font-semibold text-[var(--accent)]"
+        >{{ avatarInitial() }}</span
+      >
+      <div class="min-w-0 flex-1 leading-tight">
+        <div class="truncate text-[13px] font-semibold text-[var(--text)]">
+          {{ userEmail() ?? 'account' }}
+        </div>
+        <div class="text-[11px] text-[var(--text-faint)]">account</div>
+      </div>
+      <span class="flex-none text-[11px] text-[var(--text-faint)]">▾</span>
+    </button>
+
+    @if (userMenuOpen()) {
+      <div
+        class="absolute right-0 bottom-[calc(100%+6px)] left-0 z-50 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1.5 shadow-[var(--shadow-lg)]"
+      >
+        <div class="truncate px-3 pt-2 pb-1.5 font-mono text-[11px] text-[var(--text-faint)]">
+          {{ userEmail() ?? 'nessun account' }}
+        </div>
+        <button
+          type="button"
+          (click)="logout()"
+          class="flex w-full items-center gap-2.5 rounded-lg border-none bg-transparent px-3 py-2.5 text-left text-[13px] font-semibold text-[var(--danger)] transition-colors hover:bg-[var(--danger-soft)]"
+        >
+          <span class="text-sm">⎋</span><span>Disconnetti</span>
+        </button>
+      </div>
+    }
+  </div>
+</aside>
