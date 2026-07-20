@@ -3,7 +3,7 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { catchError, forkJoin, of, switchMap } from 'rxjs';
 import { LoadingService } from '../../../../core/state/loading.service';
-import { Client, ConnMode, Scenario, SessionRunItem, Target } from '../../../../models';
+import { Client, Scenario, SessionRunItem, Target } from '../../../../models';
 import { ClientService } from '../../../clients/data/client.service';
 import { ScenarioService } from '../../../scenarios/data/scenario.service';
 import { SessionItemDraft, SessionItemService } from '../../../sessions/data/session-item.service';
@@ -16,7 +16,6 @@ type WizardStep = 1 | 2 | 3;
 interface Config {
   reps: number;
   timeout: number;
-  conn: ConnMode;
   clientId: string;
 }
 
@@ -59,13 +58,8 @@ export class NewSession implements OnInit {
   protected readonly step = signal<WizardStep>(1);
   protected readonly selectedTargetIds = signal<string[]>([]);
   protected readonly selectedScenarioIds = signal<string[]>([]);
-  protected readonly cfg = signal<Config>({ reps: 30, timeout: 10000, conn: 'reuse', clientId: '' });
+  protected readonly cfg = signal<Config>({ reps: 30, timeout: 10000, clientId: '' });
   protected readonly sessionName = signal('');
-
-  protected readonly connOptions: { value: ConnMode; label: string }[] = [
-    { value: 'reuse', label: 'Riusa connessione' },
-    { value: 'new', label: 'Nuova per richiesta' },
-  ];
 
   protected readonly selectedTargets = computed(() =>
     this.selectedTargetIds()
@@ -118,7 +112,6 @@ export class NewSession implements OnInit {
       { label: 'Client', value: client?.name ?? '—', dim: !client },
       { label: 'Ripetizioni', value: String(cfg.reps), dim: false },
       { label: 'Timeout', value: `${cfg.timeout} ms`, dim: false },
-      { label: 'Connessione', value: cfg.conn === 'reuse' ? 'Riusata' : 'Nuova/richiesta', dim: false },
     ];
   });
 
@@ -222,7 +215,6 @@ export class NewSession implements OnInit {
     this.cfg.set({
       reps: 30,
       timeout: 10000,
-      conn: 'reuse',
       clientId: this.clients()[0]?.id ?? '',
     });
     this.sessionName.set('');
@@ -247,22 +239,12 @@ export class NewSession implements OnInit {
     this.cfg.update((c) => ({ ...c, timeout: Number.isNaN(n) ? 100 : Math.max(100, n) }));
   }
 
-  protected setConn(conn: ConnMode): void {
-    this.cfg.update((c) => ({ ...c, conn }));
-  }
-
   protected setClient(clientId: string): void {
     this.cfg.update((c) => ({ ...c, clientId }));
   }
 
   protected setSessionName(value: string): void {
     this.sessionName.set(value);
-  }
-
-  protected connButtonClass(conn: ConnMode): string {
-    return this.cfg().conn === conn
-      ? 'bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-sm)]'
-      : 'text-[var(--text-muted)]';
   }
 
   /**
@@ -286,7 +268,6 @@ export class NewSession implements OnInit {
           scenarioId: sc.id,
           clientId: cfg.clientId,
           reps: cfg.reps,
-          conn: cfg.conn,
           timeout: cfg.timeout,
         } satisfies SessionItemDraft,
         label: `${t.name} · ${sc.path}`,

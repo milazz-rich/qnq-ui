@@ -253,27 +253,6 @@
               <span class="font-mono text-[13px] text-[var(--text-muted)]">ms</span>
             </div>
           </div>
-
-          <div>
-            <label class="mb-1 block text-[13px] font-semibold text-[var(--text)]"
-              >Gestione della connessione</label
-            >
-            <p class="mt-0 mb-[9px] text-xs text-[var(--text-faint)]">
-              Se riutilizzare la stessa connessione o aprirne una nuova per ogni richiesta.
-            </p>
-            <div class="inline-flex gap-1 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] p-1">
-              @for (opt of connOptions; track opt.value) {
-                <button
-                  type="button"
-                  (click)="setConn(opt.value)"
-                  class="rounded-lg px-4 py-2 text-[12.5px] font-semibold transition-colors"
-                  [class]="connButtonClass(opt.value)"
-                >
-                  {{ opt.label }}
-                </button>
-              }
-            </div>
-          </div>
         </div>
       }
 
