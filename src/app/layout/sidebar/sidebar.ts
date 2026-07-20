@@ -38,9 +38,9 @@ export class Sidebar {
   protected readonly theme = this.themeService.theme;
   protected readonly userMenuOpen = signal(false);
 
-  protected readonly userEmail = this.auth.userEmail;
+  protected readonly userEmail = computed(() => this.auth.currentUser?.email ?? null);
   protected readonly avatarInitial = computed(() =>
-    (this.auth.userEmail() ?? '?').charAt(0).toUpperCase(),
+    (this.userEmail() ?? '?').charAt(0).toUpperCase(),
   );
 
   private readonly activeSegmentClass =
@@ -67,8 +67,7 @@ export class Sidebar {
   }
 
   protected logout(): void {
-    this.auth.logout();
     this.userMenuOpen.set(false);
-    this.router.navigateByUrl('/login');
+    this.auth.logout().subscribe(() => this.router.navigateByUrl('/login'));
   }
 }

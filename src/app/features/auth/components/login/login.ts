@@ -1,11 +1,23 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../../core/auth/auth.service';
+import { ThemeService } from '../../../../core/state/theme.service';
 
 type LoginStatus = 'idle' | 'loading' | 'success';
-type Theme = 'light' | 'dark';
 
-/** Pagina di login: form email/password con autenticazione mock. */
+/** Mappa i codici di errore di Firebase Auth in messaggi utente in italiano. */
+const FIREBASE_ERROR_MESSAGES: Record<string, string> = {
+  'auth/invalid-email': 'Inserisci un indirizzo email valido.',
+  'auth/invalid-credential': 'Email o password non corretti.',
+  'auth/user-not-found': 'Email o password non corretti.',
+  'auth/wrong-password': 'Email o password non corretti.',
+  'auth/user-disabled': 'Questo account è stato disabilitato.',
+  'auth/too-many-requests': 'Troppi tentativi. Riprova tra qualche minuto.',
+  'auth/network-request-failed': 'Impossibile contattare il server. Verifica la connessione.',
+};
+const FIREBASE_ERROR_FALLBACK = 'Accesso non riuscito. Riprova.';
+
+/** Pagina di login: form email/password autenticato via Firebase Auth. */
 @Component({
   selector: 'app-login',
   imports: [],
@@ -15,8 +27,9 @@ type Theme = 'light' | 'dark';
 export class Login {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly themeService = inject(ThemeService);
 
-  protected readonly theme = signal<Theme>('light');
+  protected readonly theme = this.themeService.theme;
   protected readonly email = signal('');
   protected readonly password = signal('');
   protected readonly showPassword = signal(false);
@@ -34,8 +47,8 @@ export class Login {
     this.theme() === 'dark' ? this.activeSegmentClass : this.inactiveSegmentClass,
   );
 
-  protected setTheme(theme: Theme): void {
-    this.theme.set(theme);
+  protected setTheme(theme: 'light' | 'dark'): void {
+    this.themeService.setTheme(theme);
   }
 
   protected onEmailChange(value: string): void {
@@ -67,9 +80,21 @@ export class Login {
 
     this.error.set('');
     this.status.set('loading');
-    this.auth.login(this.email().trim(), this.password()).subscribe(() => {
-      this.status.set('success');
-      this.router.navigateByUrl('/');
+    this.auth.login(this.email().trim(), this.password()).subscribe({
+      next: () => {
+        this.status.set('success');
+        this.router.navigateByUrl('/');
+      },
+      error: (err: unknown) => {
+        this.status.set('idle');
+        this.error.set(this.mapFirebaseError(err));
+      },
     });
+  }
+
+  /** Converte un errore di Firebase Auth in un messaggio utente in italiano. */
+  private mapFirebaseError(err: unknown): string {
+    const code = (err as { code?: string } | null)?.code;
+    return (code && FIREBASE_ERROR_MESSAGES[code]) || FIREBASE_ERROR_FALLBACK;
   }
 }
