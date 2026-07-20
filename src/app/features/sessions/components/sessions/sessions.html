@@ -148,6 +148,7 @@
                 <div
                   class="flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[11px] py-1.5"
                 >
+                  <span class="h-1.5 w-1.5 flex-none rounded-full" [class]="ch.dotClass"></span>
                   <span class="font-mono text-xs font-semibold text-[var(--text)]">{{
                     ch.label
                   }}</span>
@@ -155,6 +156,11 @@
                     class="rounded-[20px] px-2 py-0.5 font-mono text-[10px] font-semibold"
                     [class]="ch.protoClass"
                     >{{ ch.proto }}</span
+                  >
+                  <span
+                    class="inline-block rounded-[20px] px-2.5 py-[3px] text-[11.5px] font-semibold whitespace-nowrap"
+                    [class]="ch.badgeClass"
+                    >{{ ch.statusLabel }}</span
                   >
                 </div>
               }
@@ -216,8 +222,17 @@
                 >{{ i + 1 }}</span
               >
               <div class="min-w-0 flex-1">
-                <div class="truncate font-mono text-[13px] font-semibold text-[var(--text)]">
-                  {{ item.label }}
+                <div class="flex items-center gap-2">
+                  <span class="truncate font-mono text-[13px] font-semibold text-[var(--text)]">
+                    {{ item.label }}
+                  </span>
+                  @if (editorItemStatusBadge(item); as badge) {
+                    <span
+                      class="inline-block rounded-[20px] px-2.5 py-[3px] text-[11.5px] font-semibold whitespace-nowrap"
+                      [class]="badge.badgeClass"
+                      >{{ badge.label }}</span
+                    >
+                  }
                 </div>
                 <div class="text-[11.5px] text-[var(--text-faint)]">{{ itemMeta(item) }}</div>
               </div>

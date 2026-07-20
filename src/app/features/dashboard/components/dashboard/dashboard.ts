@@ -110,7 +110,12 @@ export class Dashboard implements OnInit {
       .map((session) => {
         const meta = this.sessionStatusMeta(session.status);
         const total = session.items.reduce((sum, i) => sum + i.total, 0);
-        const done = session.items.reduce((sum, i) => sum + i.done, 0);
+        // "failed" è un esito risolto (il backend non riproverà l'item): conta
+        // per intero ai fini dell'avanzamento, come un item completato.
+        const done = session.items.reduce(
+          (sum, i) => sum + (i.status === 'failed' ? i.total : i.done),
+          0,
+        );
         return {
           id: session.id,
           name: session.name,

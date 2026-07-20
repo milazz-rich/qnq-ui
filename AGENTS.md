@@ -35,9 +35,11 @@ src/app/
 │   │   ├── api.service.ts        # wrapper HttpClient (base URL, header comuni)
 │   │   └── http-error.interceptor.ts   # gestione errori centralizzata
 │   ├── auth/
-│   │   └── auth.service.ts       # autenticazione (mock in memoria per ora)
+│   │   ├── auth.service.ts       # autenticazione Firebase Auth (login, registrazione, Google, reset password)
+│   │   └── firebase.config.ts    # configurazione progetto Firebase (apiKey, projectId, ...)
 │   ├── state/
-│   │   └── loading.service.ts    # stato di loading osservabile globale
+│   │   ├── loading.service.ts    # stato di loading osservabile globale
+│   │   └── theme.service.ts      # tema chiaro/scuro, persistito in localStorage
 │   └── errors/
 │       ├── app-error.ts          # tipo di errore normalizzato dell'app
 │       └── error.service.ts      # raccolta/notifica errori centralizzata
@@ -78,6 +80,14 @@ src/app/
 ├── app.ts / app.html / app.css
 ├── app.config.ts                # provider globali (router, http, interceptor)
 └── app.routes.ts                # routing con lazy loading per pagina/feature
+```
+
+Fuori da `src/app/`, sibling di quest'ultimo:
+
+```
+src/environments/
+├── environment.ts                # produzione (default); apiBaseUrl del backend
+└── environment.development.ts    # sviluppo (`ng serve`); via fileReplacements in angular.json
 ```
 
 Regole strutturali:
@@ -178,6 +188,12 @@ import { Protocol } from './protocol.model';
 
 export type SessionStatus = 'pending' | 'running' | 'completed';
 
+// "failed": il backend non riesce a misurare l'item (client non supportato,
+// configurazione rotta). È uno stato SOLO di SessionRunItem, non di Session:
+// una Session non ha uno stato "failed" complessivo, resta pending/running/completed
+// anche se uno o più suoi item sono falliti (vedi nota sotto).
+export type SessionItemStatus = 'pending' | 'running' | 'completed' | 'failed';
+
 /** Stato di avanzamento runtime di un SessionItem dentro una Session. */
 export interface SessionRunItem {
   sessionItemId: string;         // FK -> SessionItem.id
@@ -185,7 +201,7 @@ export interface SessionRunItem {
   proto: Protocol;               // protocollo di questa esecuzione
   total: number;                 // ripetizioni totali da eseguire
   done: number;                  // ripetizioni completate
-  status: SessionStatus;         // pending | running | completed
+  status: SessionItemStatus;     // pending | running | completed | failed
 }
 
 /** Esecuzione ordinata di una lista di misure (SessionItem). */
@@ -198,6 +214,13 @@ export interface Session {
   items: SessionRunItem[];       // avanzamento per ciascun item
 }
 ```
+
+Nota su `SessionRunItem.status === 'failed'`: ai fini del **completamento della
+Session**, un item `failed` va trattato come **risolto**, esattamente come
+`completed` — il backend non lo rimisurerà, quindi non deve bloccare
+l'avanzamento né il conteggio "N / totale test" in nessuna UI (elenco Sessioni,
+pannello di avanzamento, riepiloghi). Va invece distinto visivamente (colore
+`--danger`, label "Fallito"/"Non misurabile") perché non rappresenta un successo.
 
 ### `result.model.ts` — misura prodotta
 
@@ -348,3 +371,52 @@ export class SessionService {
 - Immutabilità dei dati dal backend: non mutare gli oggetti ricevuti, crea nuove copie.
 - Ogni service e ogni metodo pubblico devono avere JSDoc; i componenti documentano con JSDoc solo la logica non ovvia.
 - Formattazione via Prettier (`.prettierrc` del repo); test co-locati `*.spec.ts` con Vitest.
+
+---
+
+## 4. Autenticazione, tema e ambienti
+
+### 4.1 Autenticazione (Firebase Auth)
+
+L'app usa **Firebase Auth reale** via `@angular/fire`, non un mock. `AuthService`
+(`src/app/core/auth/auth.service.ts`) espone:
+
+- `login(email, password)` — email/password, in uso nella UI (pagina Login).
+- `register(email, username, password)` — registrazione con `displayName`.
+- `google()` — login con popup Google (`GoogleAuthProvider`).
+- `logout()` — disconnessione.
+- `askPasswordReset(email)`, `verifyPasswordReset(oobCode)`, `confirmPasswordReset(oobCode, newPassword)` — flusso di reset password via email.
+- `currentUser` — getter sincrono sull'utente Firebase corrente (backed da un signal aggiornato tramite lo stream `user()` di AngularFire).
+
+Tutti i metodi ritornano `Observable` (wrapper di `from()` sulle Promise dell'SDK
+Firebase). Le credenziali del progetto vivono in `core/auth/firebase.config.ts` e
+sono iniettate in `app.config.ts` via `provideFirebaseApp` / `provideAuth`.
+
+### 4.2 Route guard
+
+Definiti in `app.routes.ts` con `@angular/fire/auth-guard`:
+
+- `redirectUnauthorizedTo(['/login'])` su `canActivate` della route radice
+  (il `MainLayout` con tutte le sezioni protette come children) — un utente non
+  autenticato che prova ad accedere a una sezione viene rimandato al login.
+- `redirectLoggedInTo([''])` su `canActivate` della route `login` — un utente
+  già autenticato che prova ad aprire `/login` viene rimandato alla home.
+
+Entrambi passano tramite `data: { authGuardPipe: ... }` e `canActivate: [AuthGuard]`,
+il pattern standard di AngularFire.
+
+### 4.3 Tema chiaro/scuro
+
+`ThemeService` (`src/app/core/state/theme.service.ts`) tiene lo stato del tema in
+un signal e lo **persiste in `localStorage`** a ogni `setTheme()`; al bootstrap
+dell'app il valore viene riletto da `localStorage` per ripristinare la preferenza
+dell'utente. Se `localStorage` non è disponibile (privacy mode), il servizio
+degrada silenziosamente a stato solo in memoria per la sessione corrente.
+
+### 4.4 Ambienti
+
+`API_BASE_URL` (usato da `ApiService`) ha come default `environment.apiBaseUrl`
+da `src/environments/`, non un valore hardcoded. `environment.development.ts`
+sostituisce `environment.ts` in build/serve di sviluppo tramite `fileReplacements`
+in `angular.json`. Aggiungere qui l'URL del backend per un nuovo ambiente, non
+in `app.config.ts` o nei service.

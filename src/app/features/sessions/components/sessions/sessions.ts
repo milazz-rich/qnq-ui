@@ -3,7 +3,7 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { catchError, interval, of, Subscription, switchMap } from 'rxjs';
 import { LoadingService } from '../../../../core/state/loading.service';
-import { Protocol, Session, SessionRunItem } from '../../../../models';
+import { Protocol, Session, SessionItemStatus, SessionRunItem } from '../../../../models';
 import { SessionDraft, SessionService } from '../../data/session.service';
 
 /** Modello di visualizzazione di una sessione nell'elenco. */
@@ -12,7 +12,14 @@ interface SessionCard {
   statusLabel: string;
   badgeClass: string;
   metaText: string;
-  chips: { label: string; proto: Protocol; protoClass: string }[];
+  chips: {
+    label: string;
+    proto: Protocol;
+    protoClass: string;
+    dotClass: string;
+    statusLabel: string;
+    badgeClass: string;
+  }[];
 }
 
 /** Stato di avanzamento di un item nel pannello della sessione attiva. */
@@ -73,6 +80,9 @@ export class Sessions implements OnInit {
           label: i.label,
           proto: i.proto,
           protoClass: this.protoClass(i.proto),
+          dotClass: this.itemStatusDotClass(i.status),
+          statusLabel: this.itemStatusLabel(i.status),
+          badgeClass: this.itemStatusBadgeClass(i.status),
         })),
       };
     }),
@@ -84,12 +94,21 @@ export class Sessions implements OnInit {
       return null;
     }
     const total = running.items.length;
-    const doneN = running.items.filter((i) => i.status === 'completed').length;
+    // "failed" è un esito risolto ai fini del completamento: il backend non
+    // riproverà quell'item, quindi conta come item chiuso al pari di "completed".
+    const doneN = running.items.filter(
+      (i) => i.status === 'completed' || i.status === 'failed',
+    ).length;
     const cur = Math.min(total, running.currentIndex + 1);
     const frac =
       running.items.reduce(
         (acc, i) =>
-          acc + (i.status === 'completed' ? 1 : i.status === 'running' ? i.done / i.total : 0),
+          acc +
+          (i.status === 'completed' || i.status === 'failed'
+            ? 1
+            : i.status === 'running'
+              ? i.done / i.total
+              : 0),
         0,
       ) / (total || 1);
     return {
@@ -330,7 +349,7 @@ export class Sessions implements OnInit {
 
   private progressItem(item: SessionRunItem): ProgressItem {
     const pct =
-      item.status === 'completed'
+      item.status === 'completed' || item.status === 'failed'
         ? 100
         : item.status === 'running'
           ? Math.round((item.done / item.total) * 100)
@@ -338,28 +357,78 @@ export class Sessions implements OnInit {
     return {
       label: item.label,
       proto: item.proto,
-      statusLabel:
-        item.status === 'completed' ? 'Completato' : item.status === 'running' ? 'In corso' : 'In attesa',
-      badgeClass:
-        item.status === 'completed'
-          ? 'bg-[var(--ok-soft)] text-[var(--ok)]'
-          : item.status === 'running'
-            ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-            : 'bg-[var(--bg-2)] text-[var(--text-faint)]',
-      dotClass:
-        item.status === 'completed'
-          ? 'bg-[var(--ok)]'
-          : item.status === 'running'
-            ? 'bg-[var(--accent)]'
-            : 'bg-[var(--text-faint)]',
-      barClass: item.status === 'completed' ? 'bg-[var(--ok)]' : 'bg-[var(--accent)]',
+      statusLabel: this.itemStatusLabel(item.status),
+      badgeClass: this.itemStatusBadgeClass(item.status),
+      dotClass: this.itemStatusDotClass(item.status),
+      barClass:
+        item.status === 'failed'
+          ? 'bg-[var(--danger)]'
+          : item.status === 'completed'
+            ? 'bg-[var(--ok)]'
+            : 'bg-[var(--accent)]',
       pct,
-      progressText: item.status === 'pending' ? 'In attesa' : `${item.done} / ${item.total} misurazioni`,
+      progressText:
+        item.status === 'pending'
+          ? 'In attesa'
+          : item.status === 'failed'
+            ? 'Non misurabile'
+            : `${item.done} / ${item.total} misurazioni`,
     };
   }
 
   protected itemMeta(item: SessionRunItem): string {
     return `${item.total} rip · ${item.proto}`;
+  }
+
+  /**
+   * Badge di stato per una riga del modal di modifica: visibile solo in
+   * modalità "edit" (sessione esistente, stati reali già noti); nascosto in
+   * "repropose", dove gli item ripartono azzerati a "pending" senza storico.
+   */
+  protected editorItemStatusBadge(item: SessionRunItem): { label: string; badgeClass: string } | null {
+    if (this.editorMode() !== 'edit') {
+      return null;
+    }
+    return { label: this.itemStatusLabel(item.status), badgeClass: this.itemStatusBadgeClass(item.status) };
+  }
+
+  private itemStatusLabel(status: SessionItemStatus): string {
+    switch (status) {
+      case 'completed':
+        return 'Completato';
+      case 'running':
+        return 'In corso';
+      case 'failed':
+        return 'Fallito';
+      default:
+        return 'In attesa';
+    }
+  }
+
+  private itemStatusBadgeClass(status: SessionItemStatus): string {
+    switch (status) {
+      case 'completed':
+        return 'bg-[var(--ok-soft)] text-[var(--ok)]';
+      case 'running':
+        return 'bg-[var(--accent-soft)] text-[var(--accent)]';
+      case 'failed':
+        return 'bg-[var(--danger-soft)] text-[var(--danger)]';
+      default:
+        return 'bg-[var(--bg-2)] text-[var(--text-faint)]';
+    }
+  }
+
+  private itemStatusDotClass(status: SessionItemStatus): string {
+    switch (status) {
+      case 'completed':
+        return 'bg-[var(--ok)]';
+      case 'running':
+        return 'bg-[var(--accent)]';
+      case 'failed':
+        return 'bg-[var(--danger)]';
+      default:
+        return 'bg-[var(--text-faint)]';
+    }
   }
 
   private statusLabel(status: Session['status']): string {
