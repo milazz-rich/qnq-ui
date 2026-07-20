@@ -75,9 +75,6 @@ src/app/
 │   ├── ui/                       # bottoni, spinner, badge, tabelle generiche
 │   └── pipes/
 │
-├── pages/                       # componenti di routing (contenitori di feature)
-│   └── home/
-│
 ├── app.ts / app.html / app.css
 ├── app.config.ts                # provider globali (router, http, interceptor)
 └── app.routes.ts                # routing con lazy loading per pagina/feature
