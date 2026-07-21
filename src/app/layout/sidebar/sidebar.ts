@@ -30,7 +30,6 @@ export class Sidebar {
     { label: 'Nuova sessione', link: '/new-session', exact: false },
     { label: 'Sessioni', link: '/sessions', exact: false },
     { label: 'Server', link: '/servers', exact: false },
-    { label: 'Client', link: '/clients', exact: false },
     { label: 'Scenari', link: '/scenarios', exact: false },
     { label: 'Risultati', link: '/results', exact: false },
   ];

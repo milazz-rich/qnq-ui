@@ -1,9 +1,0 @@
-.qmain::-webkit-scrollbar {
-  width: 10px;
-}
-
-.qmain::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-  border-radius: 6px;
-  border: 3px solid var(--bg);
-}

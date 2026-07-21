@@ -69,8 +69,7 @@ src/app/
 │   │   ├── data/scenario.service.ts
 │   │   └── components/...
 │   ├── clients/
-│   │   ├── data/client.service.ts
-│   │   └── components/...
+│   │   └── data/client.service.ts       # sola lettura: nessun componente/route (vedi nota sotto)
 │   ├── sessions/
 │   │   ├── data/session.service.ts
 │   │   └── components/...
@@ -168,6 +167,16 @@ export interface Client {
   name: string;                  // es. "curl", "Chrome", "Firefox"
 }
 ```
+
+> Non esiste più pagina di gestione (`/clients` rimossa da routing e sidebar),
+> né creazione/modifica/eliminazione lato UI: `ClientService` espone solo
+> `list()`, in sola lettura. In Dashboard il Client viene mostrato come card
+> informativa statica (primo elemento della lista). Nello step di
+> configurazione del wizard Nuova sessione, invece, il Client è selezionabile
+> tramite un `<select>` popolato dinamicamente da `ClientService.list()`: se in
+> futuro il backend espone più client (es. tramite Swagger, non essendoci una
+> UI di creazione), compaiono automaticamente come opzioni, senza modifiche al
+> codice.
 
 ### `session-item.model.ts` — riga di configurazione di una misura
 

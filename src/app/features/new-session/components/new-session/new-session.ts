@@ -75,6 +75,7 @@ export class NewSession implements OnInit {
       .filter((s): s is Scenario => !!s),
   );
 
+
   // ---- filtro per etichetta (step Scenario) ----
   protected readonly wizScenarioTagFilter = signal<string>(ALL_TAGS);
   protected readonly wizScenarioTagOptions = computed(() => {
@@ -112,7 +113,6 @@ export class NewSession implements OnInit {
     const scenarios = this.selectedScenarios();
     const cfg = this.cfg();
     const protoSet = Array.from(new Set(targets.map((t) => t.protocol)));
-    const client = this.clients().find((c) => c.id === cfg.clientId);
     const tgtLabel =
       targets.length === 0 ? 'Da scegliere' : targets.length === 1 ? targets[0].name : `${targets.length} server`;
     const scLabel =
@@ -121,14 +121,15 @@ export class NewSession implements OnInit {
         : scenarios.length === 1
           ? scenarios[0].path
           : `${scenarios.length} scenari`;
+    const client = this.clients().find((c) => c.id === cfg.clientId);
     return [
       { label: 'Server', value: tgtLabel, dim: targets.length === 0 },
       { label: 'Protocollo', value: protoSet.length ? protoSet.join(' · ') : '—', dim: targets.length === 0 },
       { label: scenarios.length > 1 ? 'Scenari' : 'Scenario', value: scLabel, dim: scenarios.length === 0 },
       { label: 'Test', value: this.comboCount() ? String(this.comboCount()) : '—', dim: this.comboCount() === 0 },
-      { label: 'Client', value: client?.name ?? '—', dim: !client },
       { label: 'Ripetizioni', value: String(cfg.reps), dim: false },
       { label: 'Timeout', value: `${cfg.timeout} ms`, dim: false },
+      { label: 'Client', value: client?.name ?? '—', dim: !client },
     ];
   });
 
@@ -261,12 +262,12 @@ export class NewSession implements OnInit {
     this.cfg.update((c) => ({ ...c, timeout: Number.isNaN(n) ? 100 : Math.max(100, n) }));
   }
 
-  protected setClient(clientId: string): void {
-    this.cfg.update((c) => ({ ...c, clientId }));
-  }
-
   protected setSessionName(value: string): void {
     this.sessionName.set(value);
+  }
+
+  protected setClient(clientId: string): void {
+    this.cfg.update((c) => ({ ...c, clientId }));
   }
 
   /**

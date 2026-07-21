@@ -96,12 +96,8 @@ export class Dashboard implements OnInit {
     () => new Set(this.scenarios().map((s) => s.tag).filter((tag) => tag.trim() !== '')).size,
   );
 
-  protected readonly clientCount = computed(() => this.clients().length);
-  protected readonly clientNames = computed(() =>
-    this.clients()
-      .map((c) => c.name)
-      .join(' · '),
-  );
+  /** Unico client supportato dal backend, mostrato in sola lettura. */
+  protected readonly client = computed(() => this.clients()[0] ?? null);
 
   // ---- sessioni recenti ----
   protected readonly recentSessions = computed<RecentSessionRow[]>(() =>

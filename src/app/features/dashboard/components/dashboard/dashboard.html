@@ -103,24 +103,22 @@
       </a>
 
       <!-- Client -->
-      <a
-        routerLink="/clients"
-        class="rounded-[14px] border border-[var(--border)] bg-[var(--surface)] p-[18px] shadow-[var(--shadow-sm)] transition-colors hover:border-[var(--border-strong)]"
+      <div
+        class="rounded-[14px] border border-[var(--border)] bg-[var(--surface)] p-[18px] shadow-[var(--shadow-sm)]"
       >
-        <div class="mb-3 flex items-center justify-between">
+        <div class="mb-3">
           <span class="text-[12.5px] text-[var(--text-muted)]">Client</span>
-          <span class="text-[13px] text-[var(--text-faint)]">→</span>
         </div>
-        <div class="mb-3 flex items-baseline gap-[7px]">
-          <span class="text-[28px] font-bold tracking-tight text-[var(--text)]">{{
-            clientCount()
+        <div class="mb-3 flex items-center gap-2">
+          <span class="h-[7px] w-[7px] rounded-full bg-[var(--ok)]"></span>
+          <span class="font-mono text-base font-bold tracking-tight text-[var(--text)]">{{
+            client()?.name ?? '—'
           }}</span>
-          <span class="text-[12.5px] text-[var(--text-muted)]">definiti</span>
         </div>
-        <div class="truncate font-mono text-[11.5px] text-[var(--text-faint)]">
-          {{ clientNames() || '—' }}
+        <div class="text-[11.5px] text-[var(--text-faint)]">
+          Unico client supportato dal banco di prova
         </div>
-      </a>
+      </div>
     </div>
 
     <!-- due colonne -->
