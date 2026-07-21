@@ -24,6 +24,9 @@ interface LineSeries {
   proto: Protocol;
   colorVar: string;
   points: string;
+  /** Coordinate di ogni punto noto, per i marker: un singolo giorno non ha
+   * un segmento da disegnare (una polyline con un punto solo è invisibile). */
+  markers: { x: number; y: number }[];
 }
 
 /** Barra del grafico a barre: uno scenario, un valore medio per protocollo. */
@@ -200,11 +203,11 @@ export class Results implements OnInit {
       }
       const top = Math.ceil(Math.max(...known) / 10) * 10 + 10;
       const yAt = (v: number) => padTop + plotH - (v / top) * plotH;
-      const points = byDay
-        .map((v, i) => (v === null ? null : `${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`))
-        .filter((p): p is string => p !== null)
-        .join(' ');
-      return { proto, colorVar: proto === 'HTTP/3' ? H3_COLOR : H2_COLOR, points };
+      const markers = byDay
+        .map((v, i) => (v === null ? null : { x: xAt(i), y: yAt(v) }))
+        .filter((p): p is { x: number; y: number } => p !== null);
+      const points = markers.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+      return { proto, colorVar: proto === 'HTTP/3' ? H3_COLOR : H2_COLOR, points, markers };
     };
 
     const series = (['HTTP/2', 'HTTP/3'] as Protocol[])
@@ -364,6 +367,32 @@ export class Results implements OnInit {
 
   protected closeDetail(): void {
     this.selectedResult.set(null);
+  }
+
+  /**
+   * Esporta in .xlsx (client-side, via SheetJS) esattamente i Result
+   * attualmente filtrati — la stessa selezione visibile nella tabella grezza
+   * (filtro scenario + sessione già applicati a `filteredResults`).
+   * SheetJS è caricata on-demand (~300 KB) solo al click, per non appesantire
+   * il bundle iniziale con una libreria usata raramente.
+   */
+  protected async exportExcel(): Promise<void> {
+    const XLSX = await import('xlsx');
+    const rows = this.filteredResults().map((r) => ({
+      Target: r.target,
+      Scenario: r.scenarioPath,
+      'Protocollo richiesto': r.proto,
+      'Protocollo effettivo': r.actualProto,
+      'Tempo totale (ms)': r.status === 'completed' ? r.total : null,
+      'TTFB (ms)': r.status === 'completed' ? r.ttfb : null,
+      'Dati trasferiti (KB)': r.status === 'completed' ? r.kb : null,
+      Stato: r.status === 'completed' ? 'Completato' : 'Fallito',
+      Timestamp: r.time,
+    }));
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Risultati');
+    XLSX.writeFile(workbook, `risultati-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
   private mean(list: Result[], key: 'total' | 'ttfb' | 'kb'): number {

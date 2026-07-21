@@ -12,6 +12,9 @@ import { TargetService } from '../../../targets/data/target.service';
 
 type WizardStep = 1 | 2 | 3;
 
+/** Valore usato nel filtro per rappresentare "tutte le etichette". */
+const ALL_TAGS = 'all';
+
 /** Parametri di esecuzione comuni a tutti i test generati. */
 interface Config {
   reps: number;
@@ -71,6 +74,20 @@ export class NewSession implements OnInit {
       .map((id) => this.scenarios().find((s) => s.id === id))
       .filter((s): s is Scenario => !!s),
   );
+
+  // ---- filtro per etichetta (step Scenario) ----
+  protected readonly wizScenarioTagFilter = signal<string>(ALL_TAGS);
+  protected readonly wizScenarioTagOptions = computed(() => {
+    const tags = Array.from(
+      new Set(this.scenarios().map((s) => s.tag).filter((tag) => tag.trim() !== '')),
+    ).sort((a, b) => a.localeCompare(b));
+    return [{ value: ALL_TAGS, label: 'Tutte le etichette' }, ...tags.map((t) => ({ value: t, label: t }))];
+  });
+  protected readonly filteredWizScenarios = computed(() => {
+    const filter = this.wizScenarioTagFilter();
+    const list = this.scenarios();
+    return filter === ALL_TAGS ? list : list.filter((s) => s.tag === filter);
+  });
 
   protected readonly comboCount = computed(
     () => this.selectedTargets().length * this.selectedScenarios().length,
@@ -180,6 +197,10 @@ export class NewSession implements OnInit {
     );
   }
 
+  protected setWizScenarioTagFilter(value: string): void {
+    this.wizScenarioTagFilter.set(value);
+  }
+
   // ---- navigazione step ----
   private canGo(step: WizardStep): boolean {
     if (step <= 1) {
@@ -212,6 +233,7 @@ export class NewSession implements OnInit {
     this.step.set(1);
     this.selectedTargetIds.set([]);
     this.selectedScenarioIds.set([]);
+    this.wizScenarioTagFilter.set(ALL_TAGS);
     this.cfg.set({
       reps: 30,
       timeout: 10000,

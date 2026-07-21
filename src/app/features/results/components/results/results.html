@@ -198,6 +198,19 @@
                       stroke-linecap="round"
                       vector-effect="non-scaling-stroke"
                     />
+                    <!-- marker esplicito per ogni punto: senza, un giorno solo
+                         (polyline con un unico punto) non disegnerebbe nulla -->
+                    @for (p of s.markers; track $index) {
+                      <circle
+                        [attr.cx]="p.x"
+                        [attr.cy]="p.y"
+                        r="4"
+                        [attr.fill]="s.colorVar"
+                        stroke="var(--surface)"
+                        stroke-width="1.5"
+                        vector-effect="non-scaling-stroke"
+                      />
+                    }
                   }
                 </svg>
                 <div class="mt-2 flex justify-between">
@@ -271,7 +284,16 @@
             Ogni riga è una singola misurazione. Apri il dettaglio per i dati completi.
           </p>
         </div>
-        <span class="font-mono text-xs text-[var(--text-muted)]">{{ runCountText() }}</span>
+        <div class="flex items-center gap-3.5">
+          <span class="font-mono text-xs text-[var(--text-muted)]">{{ runCountText() }}</span>
+          <button
+            type="button"
+            (click)="exportExcel()"
+            class="flex h-[34px] items-center gap-[7px] rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3.5 text-[12.5px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--border-strong)]"
+          >
+            <span class="font-mono text-sm text-[var(--ok)]">⭳</span>Esporta come Excel
+          </button>
+        </div>
       </div>
 
       <div

@@ -133,8 +133,23 @@
           </p>
         </div>
         <div class="px-3.5 pt-3 pb-[18px]">
-          @if (scenarios().length > 0) {
-            @for (sc of scenarios(); track sc.id) {
+          <div class="mb-3 flex items-center gap-3 px-1">
+            <label
+              class="font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+              >Filtra per etichetta</label
+            >
+            <select
+              [value]="wizScenarioTagFilter()"
+              (change)="setWizScenarioTagFilter($any($event.target).value)"
+              class="h-[38px] min-w-[200px] cursor-pointer rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13px] font-medium text-[var(--text)] outline-none"
+            >
+              @for (opt of wizScenarioTagOptions(); track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+          </div>
+          @if (filteredWizScenarios().length > 0) {
+            @for (sc of filteredWizScenarios(); track sc.id) {
               @let sel = isScenarioSelected(sc.id);
               <button
                 type="button"
@@ -167,7 +182,11 @@
             }
           } @else {
             <p class="px-2 py-8 text-center text-[13px] text-[var(--text-muted)]">
-              Nessuno scenario disponibile. Creane uno nella sezione Scenari.
+              @if (wizScenarioTagFilter() !== 'all') {
+                Nessuno scenario con questa etichetta. Prova un altro filtro.
+              } @else {
+                Nessuno scenario disponibile. Creane uno nella sezione Scenari.
+              }
             </p>
           }
         </div>
