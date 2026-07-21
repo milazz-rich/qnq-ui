@@ -17,6 +17,11 @@ Stack rilevato nel repo (non cambiarlo senza richiesta esplicita):
 - **Tailwind v4** (via `@tailwindcss/postcss`) per lo styling.
 - Test con **Vitest** (`ng test`).
 - `prefer const`, `strict` TypeScript attivo.
+- **`xlsx` (SheetJS)** per l'export Excel client-side in Risultati — installata dal
+  CDN ufficiale SheetJS (`https://cdn.sheetjs.com/...`), **non da npm**: la versione
+  su npm (`xlsx@0.18.5`) ha vulnerabilità note senza fix disponibile. Importata solo
+  dinamicamente (`await import('xlsx')`), mai in cima al file: è una libreria pesante
+  (~500 KB) usata raramente, va tenuta fuori dal bundle iniziale.
 
 > Regola d'oro: quando scrivi un file, imita lo stile del codice circostante
 > (densità di commenti, naming, idiomi) e rispetta le convenzioni qui sotto.
@@ -377,6 +382,13 @@ export class SessionService {
 - Immutabilità dei dati dal backend: non mutare gli oggetti ricevuti, crea nuove copie.
 - Ogni service e ogni metodo pubblico devono avere JSDoc; i componenti documentano con JSDoc solo la logica non ovvia.
 - Formattazione via Prettier (`.prettierrc` del repo); test co-locati `*.spec.ts` con Vitest.
+- **Filtro per etichetta su Scenario**: pattern riusato ovunque si debba filtrare
+  un elenco di Scenario per `tag` (Gestione Scenari, selezione Scenario nel wizard
+  Nuova sessione, ed eventuali usi futuri) — un signal `xTagFilter` (default
+  `'all'`), un `computed` `xTagOptions` che deriva `{value:'all', label:'Tutte le
+  etichette'}` + i tag unici presenti ordinati alfabeticamente, e un `computed`
+  `filteredX` che applica il filtro. Non introdurre varianti: copiare questo
+  pattern esatto (vedi `Scenarios` e `NewSession`).
 
 ---
 
