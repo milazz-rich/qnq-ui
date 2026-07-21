@@ -6,7 +6,8 @@ export type ResultStatus = 'completed' | 'failed';
 export interface Result {
   id: string;
   idx: number;
-  sessionItemId: string; // FK -> SessionRunItem.sessionItemId (Session che ha generato la misura)
+  sessionId: string; // FK -> Session.id (Sessione univoca che ha generato la misura)
+  sessionItemId: string; // FK -> SessionRunItem.sessionItemId (configurazione target/scenario/client)
   target: string; // nome del target misurato
   scenarioPath: string; // path dello scenario, es. "/images"
   proto: Protocol; // protocollo richiesto

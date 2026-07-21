@@ -233,7 +233,8 @@ export type ResultStatus = 'completed' | 'failed';
 export interface Result {
   id: string;
   idx: number;
-  sessionItemId: string;         // FK -> SessionRunItem.sessionItemId (Session generatrice)
+  sessionId: string;             // FK -> Session.id (Sessione univoca generatrice)
+  sessionItemId: string;         // FK -> SessionRunItem.sessionItemId (configurazione target/scenario/client)
   target: string;                // nome del target misurato
   scenarioPath: string;          // path dello scenario, es. "/images"
   proto: Protocol;               // protocollo richiesto
@@ -253,17 +254,22 @@ SessionItem >── 1 Target
 SessionItem >── 1 Scenario
 SessionItem >── 1 Client
 Session 1 ──< N SessionRunItem  (ogni SessionRunItem riferisce un SessionItem)
-SessionRunItem 1 ──< N Result   (join diretto per id: Result.sessionItemId)
+Session 1 ──< N Result          (join diretto e univoco: Result.sessionId)
+SessionItem 1 ──< N Result      (join per configurazione: Result.sessionItemId)
 ```
 
 Nota sul confronto HTTP/2 vs HTTP/3: `Result.proto` è il protocollo **richiesto**,
 `Result.actualProto` è quello **effettivamente negoziato** — il delta (es. un HTTP/3
 richiesto che ricade su HTTP/2) è un dato di primaria importanza per la UI.
 
-Nota su `Result.sessionItemId`: è il join esplicito verso `SessionRunItem.sessionItemId`
-(non verso `SessionItem.id` di configurazione). Permette a viste come "Risultati" di
-filtrare i Result appartenenti a una Session specifica per id, senza ricorrere a
-matching testuale su nome target / path scenario.
+Nota su `Result.sessionId` vs `Result.sessionItemId`: per filtrare i Result di una
+**Session specifica** (es. la sezione "Risultati") usa sempre `sessionId`, mai
+`sessionItemId`. `sessionItemId` referenzia il `SessionItem` di configurazione
+(target/scenario/client/reps), che è **condiviso** tra una Session e i suoi
+rilanci (Rilancia / Modifica e riproponi) — filtrare su di esso mostrerebbe i
+risultati di tutte le esecuzioni di quella configurazione, non solo quella
+scelta. `sessionId` è invece univoco per singola esecuzione. `ResultService.list()`
+accetta `sessionId` come query param lato backend (`GET /results?sessionId=...`).
 
 ### `index.ts` (barrel)
 

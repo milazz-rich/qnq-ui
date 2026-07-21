@@ -7,8 +7,8 @@ import { Result } from '../../../models';
 export interface ResultFilters {
   /** Restringe ai risultati del solo scenario con questo path (es. "/images"). */
   scenarioPath?: string;
-  /** Restringe ai risultati generati dai SessionItem indicati (join per id). */
-  sessionItemIds?: string[];
+  /** Restringe ai risultati della sessione con questo id (join diretto e univoco). */
+  sessionId?: string;
 }
 
 /** Accesso backend per i Result (misure prodotte dalle sessioni). */
@@ -17,24 +17,24 @@ export class ResultService {
   private readonly api = inject(ApiService);
 
   /**
-   * Recupera i risultati di misura, opzionalmente filtrati per scenario e/o
-   * per gli item di una sessione.
+   * Recupera i risultati di misura, opzionalmente filtrati per scenario e/o sessione.
    *
    * @param filters Filtri opzionali; se omessi recupera tutti i risultati.
    * @returns Observable che emette l'array di Result (vuoto se nessuno).
    *
-   * Backend: GET /results[?scenarioPath=...][&sessionItemIds=id1,id2,...].
-   * `sessionItemIds` filtra sul campo Result.sessionItemId (join diretto per
-   * id con i SessionRunItem di una Session). Errori normalizzati in AppError
-   * dall'interceptor.
+   * Backend: GET /results[?scenarioPath=...][&sessionId=...]. `sessionId`
+   * filtra sul campo Result.sessionId, riferimento diretto e univoco alla
+   * Session generatrice — a differenza di Result.sessionItemId (condiviso tra
+   * una Session e i suoi rilanci), non è ambiguo. Errori normalizzati in
+   * AppError dall'interceptor.
    */
   list(filters?: ResultFilters): Observable<Result[]> {
     const params: Record<string, string> = {};
     if (filters?.scenarioPath) {
       params['scenarioPath'] = filters.scenarioPath;
     }
-    if (filters?.sessionItemIds?.length) {
-      params['sessionItemIds'] = filters.sessionItemIds.join(',');
+    if (filters?.sessionId) {
+      params['sessionId'] = filters.sessionId;
     }
     return this.api.get<Result[]>('/results', Object.keys(params).length ? params : undefined);
   }

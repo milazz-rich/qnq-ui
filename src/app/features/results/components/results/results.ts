@@ -5,7 +5,7 @@ import { LoadingService } from '../../../../core/state/loading.service';
 import { Protocol, Result, Scenario, Session } from '../../../../models';
 import { ScenarioService } from '../../../scenarios/data/scenario.service';
 import { SessionService } from '../../../sessions/data/session.service';
-import { ResultService } from '../../data/result.service';
+import { ResultFilters, ResultService } from '../../data/result.service';
 
 /** Riga di confronto H2 vs H3 per una singola metrica aggregata. */
 interface CompareRow {
@@ -102,21 +102,14 @@ export class Results implements OnInit {
   );
 
   /**
-   * Il filtro per sessione è un join diretto per id: Result.sessionItemId
-   * referenzia il SessionRunItem.sessionItemId che ha generato la misura.
+   * Il filtro per sessione è applicato lato backend (vedi `reloadResults`):
+   * `results` contiene già solo i Result della sessione selezionata, tramite
+   * Result.sessionId (riferimento diretto e univoco). Qui resta solo il
+   * filtro per scenario, che invece è puramente client-side.
    */
   private readonly filteredResults = computed(() => {
-    let list = this.results();
     const scenario = this.selectedScenario();
-    if (scenario) {
-      list = list.filter((r) => r.scenarioPath === scenario.path);
-    }
-    const session = this.selectedSession();
-    if (session) {
-      const itemIds = new Set(session.items.map((i) => i.sessionItemId));
-      list = list.filter((r) => itemIds.has(r.sessionItemId));
-    }
-    return list;
+    return scenario ? this.results().filter((r) => r.scenarioPath === scenario.path) : this.results();
   });
 
   private readonly completedResults = computed(() =>
@@ -346,6 +339,23 @@ export class Results implements OnInit {
 
   protected setSessionFilter(value: string): void {
     this.sessionFilter.set(value);
+    this.reloadResults();
+  }
+
+  /**
+   * Ricarica i Result dal backend applicando il filtro per sessione corrente
+   * (query param `sessionId`), o senza filtro se è selezionato "Tutte le sessioni".
+   */
+  private reloadResults(): void {
+    const sessionId = this.sessionFilter();
+    const filters: ResultFilters | undefined = sessionId === 'all' ? undefined : { sessionId };
+    this.resultService
+      .list(filters)
+      .pipe(
+        catchError(() => of<Result[]>([])),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((results) => this.results.set(results));
   }
 
   protected openDetail(result: Result): void {
