@@ -9,7 +9,6 @@ export interface Target {
   host: string;
   port: number;
   protocol: Protocol; // HTTP/2 | HTTP/3
-  maxc: number; // max connessioni concorrenti
+  tag: string; // etichetta libera
   status: TargetStatus; // online | idle | offline
-  latency: number; // ms
 }

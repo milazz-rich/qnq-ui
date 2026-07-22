@@ -115,7 +115,7 @@ Naming:
 
 Modello **definito e finale**: usa esattamente questi campi, non aggiungerne né
 rinominarne. Definito in `src/app/models/`. Ogni entità è una `interface`. Gli id
-sono `string`. I valori di tempo (`total`, `ttfb`, `latency`, `timeout`) sono in
+sono `string`. I valori di tempo (`total`, `ttfb`, `timeout`) sono in
 **millisecondi**. I campi `when` / `time` sono timestamp (stringa ISO 8601).
 
 ### `protocol.model.ts` — tipo condiviso
@@ -139,11 +139,15 @@ export interface Target {
   host: string;
   port: number;
   protocol: Protocol;            // HTTP/2 | HTTP/3
-  maxc: number;                  // max connessioni concorrenti
+  tag: string;                   // etichetta libera (filtrabile nell'elenco Server)
   status: TargetStatus;          // online | idle | offline
-  latency: number;               // ms
 }
 ```
+
+> `tag` segue lo stesso pattern di `Scenario.tag`: assegnabile in creazione/
+> modifica e filtrabile nell'elenco Server (select con etichette distinte +
+> "Tutte le etichette", vedi §3.6). I campi `maxc` (concorrenza massima) e
+> `latency` sono stati rimossi: non avevano implementazione reale nel backend.
 
 ### `scenario.model.ts` — percorso da misurare
 
@@ -391,13 +395,32 @@ export class SessionService {
 - Immutabilità dei dati dal backend: non mutare gli oggetti ricevuti, crea nuove copie.
 - Ogni service e ogni metodo pubblico devono avere JSDoc; i componenti documentano con JSDoc solo la logica non ovvia.
 - Formattazione via Prettier (`.prettierrc` del repo); test co-locati `*.spec.ts` con Vitest.
-- **Filtro per etichetta su Scenario**: pattern riusato ovunque si debba filtrare
-  un elenco di Scenario per `tag` (Gestione Scenari, selezione Scenario nel wizard
-  Nuova sessione, ed eventuali usi futuri) — un signal `xTagFilter` (default
-  `'all'`), un `computed` `xTagOptions` che deriva `{value:'all', label:'Tutte le
-  etichette'}` + i tag unici presenti ordinati alfabeticamente, e un `computed`
-  `filteredX` che applica il filtro. Non introdurre varianti: copiare questo
-  pattern esatto (vedi `Scenarios` e `NewSession`).
+- **Filtro per etichetta**: pattern riusato ovunque si debba filtrare un elenco
+  per `tag` — Scenario (Gestione Scenari, selezione Scenario nel wizard Nuova
+  sessione) e Target (elenco Server, selezione Server nel wizard Nuova
+  sessione) — un signal `xTagFilter` (default `'all'`), un `computed`
+  `xTagOptions` che deriva `{value:'all', label:'Tutte le etichette'}` + i tag
+  unici presenti ordinati alfabeticamente, e un `computed` `filteredX` che
+  applica il filtro. Non introdurre varianti: copiare questo pattern esatto
+  (vedi `Scenarios`, `Servers` e, in `NewSession`, sia
+  `wizTargetTagFilter`/`filteredWizTargets` per lo step Server sia
+  `wizScenarioTagFilter`/`filteredWizScenarios` per lo step Scenario). In
+  entrambi gli step del wizard il cambio di filtro non tocca lo stato di
+  selezione (`selectedTargetIds`/`selectedScenarioIds`, tracciato per id):
+  cambiare filtro non deseleziona gli elementi già scelti, anche se non più
+  visibili nell'elenco filtrato.
+- **Grafico "Andamento e confronto" (Risultati)**: due grafici a barre. A
+  sinistra il **confronto tra due Sessioni** scelte da due `<select>` dedicati
+  (`compareSessionA`/`compareSessionB`, popolati da `SessionService`): i Result
+  delle due sessioni sono caricati a parte via il filtro `sessionId` di
+  `ResultService`, indipendenti dai filtri in cima; per ogni metrica (tempo
+  totale medio, TTFB medio) una barra per combinazione sessione × protocollo,
+  colorata HTTP/2 (`--accent`) / HTTP/3 (`--warn`). Gestiti lo stato iniziale
+  (nessuna scelta) e le sessioni senza Result. A destra il tempo medio **per
+  server**. Nessun dato simulato: tutto deriva da `ResultService`.
+- **Nome sessione modificabile**: il modal "Modifica sessione" (`Sessions`)
+  espone un campo nome (`editorName`) oltre a rimozione/riordino degli item; il
+  salvataggio in modalità `edit` passa il nuovo nome a `SessionService.update`.
 
 ---
 

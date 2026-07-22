@@ -74,8 +74,23 @@
           </p>
         </div>
         <div class="px-3.5 pt-3 pb-[18px]">
-          @if (targets().length > 0) {
-            @for (t of targets(); track t.id) {
+          <div class="mb-3 flex items-center gap-3 px-1">
+            <label
+              class="font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+              >Filtra per etichetta</label
+            >
+            <select
+              [value]="wizTargetTagFilter()"
+              (change)="setWizTargetTagFilter($any($event.target).value)"
+              class="h-[38px] min-w-[200px] cursor-pointer rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13px] font-medium text-[var(--text)] outline-none"
+            >
+              @for (opt of wizTargetTagOptions(); track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+          </div>
+          @if (filteredWizTargets().length > 0) {
+            @for (t of filteredWizTargets(); track t.id) {
               @let disabled = t.status === 'offline';
               @let sel = isTargetSelected(t.id) && !disabled;
               <button
@@ -96,7 +111,17 @@
                   >{{ sel ? '✓' : '' }}</span
                 >
                 <div class="min-w-0 flex-1 text-left">
-                  <div class="font-mono text-[13px] font-semibold text-[var(--text)]">{{ t.name }}</div>
+                  <div class="flex items-center gap-2">
+                    <span class="font-mono text-[13px] font-semibold text-[var(--text)]">{{
+                      t.name
+                    }}</span>
+                    @if (t.tag) {
+                      <span
+                        class="inline-block rounded-[20px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-[var(--text-muted)]"
+                        >{{ t.tag }}</span
+                      >
+                    }
+                  </div>
                   <div class="font-mono text-[11.5px] text-[var(--text-faint)]">
                     {{ t.host }}:{{ t.port }}
                   </div>
@@ -117,7 +142,11 @@
             }
           } @else {
             <p class="px-2 py-8 text-center text-[13px] text-[var(--text-muted)]">
-              Nessun server disponibile. Configurane uno nella sezione Server.
+              @if (wizTargetTagFilter() !== 'all') {
+                Nessun server con questa etichetta. Prova un altro filtro.
+              } @else {
+                Nessun server disponibile. Configurane uno nella sezione Server.
+              }
             </p>
           }
         </div>

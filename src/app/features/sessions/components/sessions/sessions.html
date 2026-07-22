@@ -212,6 +212,16 @@
       </div>
 
       <div class="qmain flex-1 overflow-y-auto px-6 py-[18px]">
+        <label
+          class="mb-2 block font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+          >Nome sessione</label
+        >
+        <input
+          [value]="editorName()"
+          (input)="setEditorName($any($event.target).value)"
+          placeholder="Nome della sessione"
+          class="mb-[18px] h-11 w-full rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[14px] text-sm font-medium text-[var(--text)] outline-none focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)]"
+        />
         @if (editorItems().length > 0) {
           @for (item of editorItems(); track item.sessionItemId; let i = $index; let last = $last) {
             <div

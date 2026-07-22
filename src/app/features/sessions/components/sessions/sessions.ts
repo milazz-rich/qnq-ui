@@ -125,6 +125,7 @@ export class Sessions implements OnInit {
   protected readonly editorMode = signal<'edit' | 'repropose'>('edit');
   private editorSource: Session | null = null;
   protected readonly editorItems = signal<SessionRunItem[]>([]);
+  protected readonly editorName = signal('');
   protected readonly saving = signal(false);
 
   protected readonly editorTitle = computed(() =>
@@ -139,7 +140,7 @@ export class Sessions implements OnInit {
     this.saving() ? 'Salvataggio…' : this.editorMode() === 'edit' ? 'Salva modifiche' : 'Crea sessione',
   );
   protected readonly editorSaveDisabled = computed(
-    () => this.saving() || this.editorItems().length === 0,
+    () => this.saving() || this.editorItems().length === 0 || this.editorName().trim() === '',
   );
   protected readonly editorTotalText = computed(() => {
     const items = this.editorItems();
@@ -202,6 +203,7 @@ export class Sessions implements OnInit {
     this.editorMode.set('edit');
     this.editorSource = session;
     this.editorItems.set(session.items.map((i) => ({ ...i })));
+    this.editorName.set(session.name);
     this.editorOpen.set(true);
   }
 
@@ -212,7 +214,12 @@ export class Sessions implements OnInit {
     this.editorItems.set(
       session.items.map((i) => ({ ...i, done: 0, status: 'pending' })),
     );
+    this.editorName.set(`${session.name} (copia)`);
     this.editorOpen.set(true);
+  }
+
+  protected setEditorName(value: string): void {
+    this.editorName.set(value);
   }
 
   protected closeEditor(): void {
@@ -242,17 +249,18 @@ export class Sessions implements OnInit {
     this.saving.set(true);
     const source = this.editorSource;
     const items = this.editorItems();
+    const name = this.editorName().trim();
 
     const request =
       this.editorMode() === 'edit'
         ? this.sessionService.update(source.id, {
-            name: source.name,
+            name,
             when: source.when,
             status: source.status,
             currentIndex: source.currentIndex,
             items,
           })
-        : this.sessionService.create(this.newDraft(`${source.name} (copia)`, items));
+        : this.sessionService.create(this.newDraft(name, items));
 
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {

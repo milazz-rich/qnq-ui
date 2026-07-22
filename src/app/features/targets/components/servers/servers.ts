@@ -4,12 +4,15 @@ import { LoadingService } from '../../../../core/state/loading.service';
 import { Protocol, Target, TargetStatus } from '../../../../models';
 import { TargetDraft, TargetService } from '../../data/target.service';
 
+/** Valore usato nel filtro per rappresentare "tutte le etichette". */
+const ALL_TAGS = 'all';
+
 /** Valori di default per un nuovo target in creazione. */
 function emptyDraft(): TargetDraft {
-  return { name: '', host: '', port: 443, protocol: 'HTTP/2', maxc: 8, status: 'idle', latency: 0 };
+  return { name: '', host: '', port: 443, protocol: 'HTTP/2', tag: '', status: 'idle' };
 }
 
-/** Sezione "Server": elenco, creazione, modifica ed eliminazione dei Target. */
+/** Sezione "Server": elenco, filtro per etichetta, creazione, modifica ed eliminazione dei Target. */
 @Component({
   selector: 'app-servers',
   imports: [],
@@ -28,13 +31,29 @@ export class Servers implements OnInit {
 
   private readonly targets = signal<Target[]>([]);
   protected readonly serverCount = computed(() => this.targets().length);
+
+  // ---- filtro per etichetta ----
+  protected readonly tagFilter = signal<string>(ALL_TAGS);
+  protected readonly tagOptions = computed(() => {
+    // `?? ''` difensivo: il backend può ancora non restituire `tag` (campo
+    // nuovo lato frontend), quindi normalizziamo l'assenza a stringa vuota.
+    const tags = Array.from(
+      new Set(this.targets().map((t) => (t.tag ?? '').trim()).filter((tag) => tag !== '')),
+    ).sort((a, b) => a.localeCompare(b));
+    return [{ value: ALL_TAGS, label: 'Tutte le etichette' }, ...tags.map((t) => ({ value: t, label: t }))];
+  });
+  private readonly filteredTargets = computed(() => {
+    const filter = this.tagFilter();
+    const list = this.targets();
+    return filter === ALL_TAGS ? list : list.filter((t) => (t.tag ?? '') === filter);
+  });
+
   protected readonly rows = computed(() =>
-    this.targets().map((t) => ({
+    this.filteredTargets().map((t) => ({
       target: t,
       dotClass: this.statusDotClass(t.status),
       badgeClass: this.statusBadgeClass(t.status),
       statusLabel: this.statusLabel(t.status),
-      latencyText: t.status === 'online' && t.latency > 0 ? `${t.latency} ms` : '—',
     })),
   );
 
@@ -118,14 +137,12 @@ export class Servers implements OnInit {
     this.draft.update((d) => ({ ...d, port: Number.isNaN(port) ? d.port : port }));
   }
 
-  protected setMaxc(value: string): void {
-    const maxc = parseInt(value, 10);
-    this.draft.update((d) => ({ ...d, maxc: Number.isNaN(maxc) ? d.maxc : maxc }));
+  protected setTag(value: string): void {
+    this.draft.update((d) => ({ ...d, tag: value }));
   }
 
-  protected setLatency(value: string): void {
-    const latency = parseInt(value, 10);
-    this.draft.update((d) => ({ ...d, latency: Number.isNaN(latency) ? d.latency : latency }));
+  protected setTagFilter(value: string): void {
+    this.tagFilter.set(value);
   }
 
   protected setProtocol(protocol: Protocol): void {
@@ -133,7 +150,7 @@ export class Servers implements OnInit {
   }
 
   protected setStatus(status: TargetStatus): void {
-    this.draft.update((d) => ({ ...d, status, latency: status === 'online' ? d.latency : 0 }));
+    this.draft.update((d) => ({ ...d, status }));
   }
 
   protected protocolButtonClass(protocol: Protocol): string {

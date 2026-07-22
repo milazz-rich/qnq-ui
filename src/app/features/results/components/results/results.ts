@@ -1,4 +1,4 @@
-import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnInit, signal, WritableSignal } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, forkJoin, of } from 'rxjs';
 import { LoadingService } from '../../../../core/state/loading.service';
@@ -19,21 +19,27 @@ interface CompareRow {
   badgeClass: string;
 }
 
-/** Punto del grafico a linee: un giorno, un valore medio per protocollo. */
-interface LineSeries {
-  proto: Protocol;
+/** Barra del grafico a barre: un server, valore medio colorato per protocollo. */
+interface ServerBar {
+  name: string;
+  valueText: string;
+  heightPct: number;
   colorVar: string;
-  points: string;
-  /** Coordinate di ogni punto noto, per i marker: un singolo giorno non ha
-   * un segmento da disegnare (una polyline con un punto solo è invisibile). */
-  markers: { x: number; y: number }[];
 }
 
-/** Barra del grafico a barre: uno scenario, un valore medio per protocollo. */
-interface BarGroup {
-  scenarioPath: string;
-  h2: { valueText: string; heightPct: number } | null;
-  h3: { valueText: string; heightPct: number } | null;
+/** Barra del confronto tra sessioni: una sessione × un protocollo. */
+interface CompareBar {
+  name: string;
+  protoLabel: Protocol;
+  valueText: string;
+  heightPct: number;
+  colorVar: string;
+}
+
+/** Gruppo di barre per una singola metrica nel confronto tra due sessioni. */
+interface CompareMetric {
+  label: string;
+  bars: CompareBar[];
 }
 
 /** Riga della tabella delle misurazioni grezze. */
@@ -104,6 +110,19 @@ export class Results implements OnInit {
     () => this.sessions().find((s) => s.id === this.sessionFilter()) ?? null,
   );
 
+  // ---- confronto tra due sessioni (grafico dedicato) ----
+  protected readonly compareSessionA = signal<string>('');
+  protected readonly compareSessionB = signal<string>('');
+  // Result delle due sessioni scelte, caricati separatamente dai filtri in cima
+  // (via sessionId): null = nessuna sessione selezionata / caricamento in corso.
+  private readonly compareResultsA = signal<Result[] | null>(null);
+  private readonly compareResultsB = signal<Result[] | null>(null);
+
+  protected readonly compareSessionOptions = computed(() => [
+    { value: '', label: 'Seleziona sessione' },
+    ...this.sessions().map((s) => ({ value: s.id, label: s.name })),
+  ]);
+
   /**
    * Il filtro per sessione è applicato lato backend (vedi `reloadResults`):
    * `results` contiene già solo i Result della sessione selezionata, tramite
@@ -173,88 +192,91 @@ export class Results implements OnInit {
 
   protected readonly overallBadgeClass = computed(() => this.protoTintClass(this.overallWinner()));
 
-  // ---- grafico a linee: andamento nel tempo per protocollo ----
-  protected readonly lineChart = computed(() => {
-    const done = this.completedResults();
-    const dayOf = (r: Result) => {
-      const d = new Date(r.time);
-      return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
-    };
-    const days = Array.from(new Set(done.map(dayOf).filter((d): d is string => !!d))).sort();
-    if (days.length === 0) {
-      return null;
+  // ---- confronto tra due sessioni: barre affiancate per metrica ----
+  /**
+   * Costruisce, per ogni metrica principale (tempo totale, TTFB), una barra per
+   * ciascuna combinazione sessione × protocollo con misurazioni completate.
+   * Vuoto finché entrambe le sessioni non sono selezionate e caricate.
+   */
+  protected readonly sessCompareMetrics = computed<CompareMetric[]>(() => {
+    const a = this.compareResultsA();
+    const b = this.compareResultsB();
+    const sessA = this.sessions().find((s) => s.id === this.compareSessionA()) ?? null;
+    const sessB = this.sessions().find((s) => s.id === this.compareSessionB()) ?? null;
+    if (!a || !b || !sessA || !sessB) {
+      return [];
     }
-    const W = 680;
-    const H = 220;
-    const padX = 8;
-    const padTop = 10;
-    const padBot = 10;
-    const plotH = H - padTop - padBot;
-    const xAt = (i: number) => (days.length === 1 ? W / 2 : padX + (i * (W - padX * 2)) / (days.length - 1));
-
-    const seriesFor = (proto: Protocol): LineSeries | null => {
-      const byDay = days.map((day) => {
-        const vals = done.filter((r) => r.actualProto === proto && dayOf(r) === day).map((r) => r.total);
-        return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
-      });
-      const known = byDay.filter((v): v is number => v !== null);
-      if (known.length === 0) {
-        return null;
-      }
-      const top = Math.ceil(Math.max(...known) / 10) * 10 + 10;
-      const yAt = (v: number) => padTop + plotH - (v / top) * plotH;
-      const markers = byDay
-        .map((v, i) => (v === null ? null : { x: xAt(i), y: yAt(v) }))
-        .filter((p): p is { x: number; y: number } => p !== null);
-      const points = markers.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-      return { proto, colorVar: proto === 'HTTP/3' ? H3_COLOR : H2_COLOR, points, markers };
-    };
-
-    const series = (['HTTP/2', 'HTTP/3'] as Protocol[])
-      .map(seriesFor)
-      .filter((s): s is LineSeries => !!s);
-    if (series.length === 0) {
-      return null;
-    }
-
-    const allValues = done.map((r) => r.total);
-    const top = Math.ceil(Math.max(...allValues) / 10) * 10 + 10;
-    const yTicks = Array.from({ length: 5 }, (_, i) => {
-      const v = Math.round((top * (4 - i)) / 4);
-      return { label: String(v), topPct: ((padTop + (plotH * i) / 4) / H) * 100 };
+    const slots = [
+      { session: sessA, results: a.filter((r) => r.status === 'completed') },
+      { session: sessB, results: b.filter((r) => r.status === 'completed') },
+    ];
+    const protos: Protocol[] = ['HTTP/2', 'HTTP/3'];
+    const metrics: { key: 'total' | 'ttfb'; label: string }[] = [
+      { key: 'total', label: 'Tempo totale medio (ms)' },
+      { key: 'ttfb', label: 'TTFB medio (ms)' },
+    ];
+    return metrics.map(({ key, label }) => {
+      const raw = slots.flatMap((slot) =>
+        protos
+          .map((proto) => {
+            const vals = slot.results
+              .filter((r) => r.actualProto === proto)
+              .map((r) => r[key]);
+            if (vals.length === 0) {
+              return null;
+            }
+            return { name: slot.session.name, proto, value: this.round(vals) };
+          })
+          .filter((x): x is { name: string; proto: Protocol; value: number } => x !== null),
+      );
+      const top = raw.length
+        ? Math.ceil(Math.max(...raw.map((r) => r.value)) / 10) * 10 + 10
+        : 10;
+      const bars: CompareBar[] = raw.map((r) => ({
+        name: r.name,
+        protoLabel: r.proto,
+        valueText: `${r.value} ms`,
+        heightPct: Math.max(4, (r.value / top) * 100),
+        colorVar: r.proto === 'HTTP/3' ? H3_COLOR : H2_COLOR,
+      }));
+      return { label, bars };
     });
-    const gridLines = Array.from({ length: 5 }, (_, i) => padTop + (plotH * i) / 4);
-    const xLabels = days.map((d) => {
-      const dt = new Date(d);
-      return `${dt.getDate()}/${dt.getMonth() + 1}`;
-    });
-
-    return { series, yTicks, gridLines, xLabels, viewBox: `0 0 ${W} ${H}` };
   });
 
-  // ---- grafico a barre: confronto tra scenari ----
-  protected readonly barChart = computed(() => {
+  protected readonly sessCompareReady = computed(() =>
+    this.sessCompareMetrics().some((m) => m.bars.length > 0),
+  );
+  /** Messaggio dello stato vuoto: nessuna scelta vs sessioni senza misurazioni. */
+  protected readonly sessCompareMessage = computed(() =>
+    !this.compareSessionA() || !this.compareSessionB()
+      ? 'Scegli due sessioni da confrontare.'
+      : 'Nessuna misurazione disponibile per una delle sessioni selezionate.',
+  );
+
+  // ---- grafico a barre: tempo medio per server ----
+  /**
+   * Una barra per server (target) tra i Result filtrati, con il tempo totale
+   * medio; il colore riflette il protocollo prevalente delle sue misurazioni.
+   */
+  protected readonly serverBars = computed<ServerBar[] | null>(() => {
     const done = this.completedResults();
     if (done.length === 0) {
       return null;
     }
-    const scenarioPaths = Array.from(new Set(done.map((r) => r.scenarioPath))).sort();
-    const meanFor = (path: string, proto: Protocol) => {
-      const vals = done.filter((r) => r.scenarioPath === path && r.actualProto === proto).map((r) => r.total);
-      return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
-    };
-    const raw = scenarioPaths.map((path) => ({
-      path,
-      h2: meanFor(path, 'HTTP/2'),
-      h3: meanFor(path, 'HTTP/3'),
+    const names = Array.from(new Set(done.map((r) => r.target)));
+    const raw = names.map((name) => {
+      const rs = done.filter((r) => r.target === name);
+      const h3 = rs.filter((r) => r.actualProto === 'HTTP/3').length;
+      const proto: Protocol = h3 * 2 >= rs.length ? 'HTTP/3' : 'HTTP/2';
+      return { name, value: this.round(rs.map((r) => r.total)), proto };
+    });
+    const top = Math.ceil(Math.max(...raw.map((r) => r.value)) / 50) * 50 + 50;
+    return raw.map((r) => ({
+      name: r.name,
+      valueText: `${r.value} ms`,
+      heightPct: Math.max(4, (r.value / top) * 100),
+      colorVar: r.proto === 'HTTP/3' ? H3_COLOR : H2_COLOR,
     }));
-    const top = Math.ceil(Math.max(...raw.flatMap((r) => [r.h2 ?? 0, r.h3 ?? 0])) / 50) * 50 + 50;
-    const bars: BarGroup[] = raw.map((r) => ({
-      scenarioPath: r.path,
-      h2: r.h2 === null ? null : { valueText: `${r.h2} ms`, heightPct: Math.max(4, (r.h2 / top) * 100) },
-      h3: r.h3 === null ? null : { valueText: `${r.h3} ms`, heightPct: Math.max(4, (r.h3 / top) * 100) },
-    }));
-    return bars;
   });
 
   // ---- tabella misurazioni grezze ----
@@ -345,6 +367,36 @@ export class Results implements OnInit {
     this.reloadResults();
   }
 
+  protected setCompareSessionA(value: string): void {
+    this.compareSessionA.set(value);
+    this.loadCompareResults(value, this.compareResultsA);
+  }
+
+  protected setCompareSessionB(value: string): void {
+    this.compareSessionB.set(value);
+    this.loadCompareResults(value, this.compareResultsB);
+  }
+
+  /**
+   * Carica i Result della sessione scelta per il grafico di confronto, tramite
+   * il filtro `sessionId` del backend, indipendentemente dai filtri in cima.
+   * Con id vuoto (nessuna scelta) azzera il relativo insieme.
+   */
+  private loadCompareResults(sessionId: string, target: WritableSignal<Result[] | null>): void {
+    if (!sessionId) {
+      target.set(null);
+      return;
+    }
+    target.set(null);
+    this.resultService
+      .list({ sessionId })
+      .pipe(
+        catchError(() => of<Result[]>([])),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((results) => target.set(results));
+  }
+
   /**
    * Ricarica i Result dal backend applicando il filtro per sessione corrente
    * (query param `sessionId`), o senza filtro se è selezionato "Tutte le sessioni".
@@ -398,6 +450,12 @@ export class Results implements OnInit {
   private mean(list: Result[], key: 'total' | 'ttfb' | 'kb'): number {
     if (list.length === 0) return 0;
     return Math.round(list.reduce((sum, r) => sum + r[key], 0) / list.length);
+  }
+
+  /** Media intera di un elenco di valori numerici (0 se vuoto). */
+  private round(vals: number[]): number {
+    if (vals.length === 0) return 0;
+    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
   }
 
   private formatKb(kb: number): string {

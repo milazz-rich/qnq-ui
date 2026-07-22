@@ -15,6 +15,21 @@
     </button>
   </div>
 
+  <div class="mb-4 flex items-center gap-3">
+    <label class="font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+      >Filtra per etichetta</label
+    >
+    <select
+      [value]="tagFilter()"
+      (change)="setTagFilter($any($event.target).value)"
+      class="h-[38px] min-w-[200px] cursor-pointer rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13px] font-medium text-[var(--text)] shadow-[var(--shadow-sm)] outline-none"
+    >
+      @for (opt of tagOptions(); track opt.value) {
+        <option [value]="opt.value">{{ opt.label }}</option>
+      }
+    </select>
+  </div>
+
   @if (!loaded() && loading()) {
     <div
       class="flex items-center gap-3 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-6 py-8 text-sm text-[var(--text-muted)] shadow-[var(--shadow-sm)]"
@@ -29,16 +44,16 @@
       class="overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)]"
     >
       <div
-        class="grid grid-cols-[1.1fr_1.4fr_0.9fr_0.7fr_0.8fr_0.9fr_96px] gap-3 border-b border-[var(--border)] bg-[var(--surface-2)] px-[22px] py-3 font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+        class="grid grid-cols-[1.2fr_1.6fr_1fr_0.9fr_0.9fr_96px] gap-3 border-b border-[var(--border)] bg-[var(--surface-2)] px-[22px] py-3 font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
       >
-        <span>Nome</span><span>Host</span><span>Proto</span><span>Conc.</span
-        ><span>Latenza</span><span>Stato</span><span></span>
+        <span>Nome</span><span>Host</span><span>Proto</span><span>Etichetta</span
+        ><span>Stato</span><span></span>
       </div>
 
       @if (rows().length > 0) {
         @for (row of rows(); track row.target.id) {
           <div
-            class="grid grid-cols-[1.1fr_1.4fr_0.9fr_0.7fr_0.8fr_0.9fr_96px] items-center gap-3 border-b border-[var(--border)] px-[22px] py-[15px] last:border-b-0"
+            class="grid grid-cols-[1.2fr_1.6fr_1fr_0.9fr_0.9fr_96px] items-center gap-3 border-b border-[var(--border)] px-[22px] py-[15px] last:border-b-0"
           >
             <div class="flex min-w-0 items-center gap-2">
               <span class="h-2 w-2 flex-none rounded-full" [class]="row.dotClass"></span>
@@ -52,12 +67,16 @@
             <span class="font-mono text-[12.5px] text-[var(--text-muted)]">{{
               row.target.protocol
             }}</span>
-            <span class="font-mono text-[12.5px] text-[var(--text-muted)]"
-              >{{ row.target.maxc }}×</span
-            >
-            <span class="font-mono text-[12.5px] text-[var(--text-muted)]">{{
-              row.latencyText
-            }}</span>
+            <span>
+              @if (row.target.tag) {
+                <span
+                  class="inline-block rounded-[20px] border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-[3px] text-[11.5px] font-semibold whitespace-nowrap text-[var(--text-muted)]"
+                  >{{ row.target.tag }}</span
+                >
+              } @else {
+                <span class="text-[12.5px] text-[var(--text-faint)]">—</span>
+              }
+            </span>
             <span>
               <span
                 class="inline-block rounded-[20px] px-2.5 py-[3px] text-[11.5px] font-semibold whitespace-nowrap"
@@ -76,9 +95,13 @@
         }
       } @else {
         <div class="px-5 py-11 text-center">
-          <p class="m-0 text-[13.5px] text-[var(--text-muted)]">Nessun server configurato.</p>
+          <p class="m-0 text-[13.5px] text-[var(--text-muted)]">Nessun server trovato.</p>
           <p class="mt-1.5 mb-0 text-[12.5px] text-[var(--text-faint)]">
-            Aggiungi il primo server per iniziare a definire i test.
+            @if (tagFilter() !== 'all') {
+              Nessun server con questa etichetta. Prova un altro filtro.
+            } @else {
+              Aggiungi il primo server per iniziare a definire i test.
+            }
           </p>
         </div>
       }
@@ -170,19 +193,17 @@
 
         <div>
           <label class="mb-[7px] block text-[13px] font-medium text-[var(--text-muted)]"
-            >Misurazioni concorrenti max</label
+            >Etichetta</label
           >
           <input
-            type="number"
-            [value]="draft().maxc"
-            (input)="setMaxc($any($event.target).value)"
-            placeholder="8"
-            min="1"
-            max="64"
-            class="h-11 w-full rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[14px] font-mono text-sm text-[var(--text)] outline-none focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)]"
+            [value]="draft().tag"
+            (input)="setTag($any($event.target).value)"
+            placeholder="es. Produzione, Staging"
+            class="h-11 w-full rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[14px] text-sm text-[var(--text)] outline-none focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)]"
           />
           <p class="mt-2 mb-0 text-xs text-[var(--text-faint)]">
-            Quante misurazioni possono girare in parallelo su questo server.
+            Raggruppa i server per trovarli col filtro nell'elenco. Lascia vuoto per nessuna
+            etichetta.
           </p>
         </div>
 
@@ -201,22 +222,6 @@
             }
           </div>
         </div>
-
-        @if (draft().status === 'online') {
-          <div>
-            <label class="mb-[7px] block text-[13px] font-medium text-[var(--text-muted)]"
-              >Latenza (ms)</label
-            >
-            <input
-              type="number"
-              [value]="draft().latency"
-              (input)="setLatency($any($event.target).value)"
-              placeholder="42"
-              min="0"
-              class="h-11 w-full rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[14px] font-mono text-sm text-[var(--text)] outline-none focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)]"
-            />
-          </div>
-        }
 
         @if (editorMode() === 'edit') {
           <button

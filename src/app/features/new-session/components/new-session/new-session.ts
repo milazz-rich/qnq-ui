@@ -76,6 +76,20 @@ export class NewSession implements OnInit {
   );
 
 
+  // ---- filtro per etichetta (step Server) ----
+  protected readonly wizTargetTagFilter = signal<string>(ALL_TAGS);
+  protected readonly wizTargetTagOptions = computed(() => {
+    const tags = Array.from(
+      new Set(this.targets().map((t) => t.tag).filter((tag) => tag.trim() !== '')),
+    ).sort((a, b) => a.localeCompare(b));
+    return [{ value: ALL_TAGS, label: 'Tutte le etichette' }, ...tags.map((t) => ({ value: t, label: t }))];
+  });
+  protected readonly filteredWizTargets = computed(() => {
+    const filter = this.wizTargetTagFilter();
+    const list = this.targets();
+    return filter === ALL_TAGS ? list : list.filter((t) => t.tag === filter);
+  });
+
   // ---- filtro per etichetta (step Scenario) ----
   protected readonly wizScenarioTagFilter = signal<string>(ALL_TAGS);
   protected readonly wizScenarioTagOptions = computed(() => {
@@ -198,6 +212,10 @@ export class NewSession implements OnInit {
     );
   }
 
+  protected setWizTargetTagFilter(value: string): void {
+    this.wizTargetTagFilter.set(value);
+  }
+
   protected setWizScenarioTagFilter(value: string): void {
     this.wizScenarioTagFilter.set(value);
   }
@@ -234,6 +252,7 @@ export class NewSession implements OnInit {
     this.step.set(1);
     this.selectedTargetIds.set([]);
     this.selectedScenarioIds.set([]);
+    this.wizTargetTagFilter.set(ALL_TAGS);
     this.wizScenarioTagFilter.set(ALL_TAGS);
     this.cfg.set({
       reps: 30,
