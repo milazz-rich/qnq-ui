@@ -8,7 +8,8 @@ export interface Result {
   idx: number;
   sessionId: string; // FK -> Session.id (Sessione univoca che ha generato la misura)
   sessionItemId: string; // FK -> SessionRunItem.sessionItemId (configurazione target/scenario/client)
-  target: string; // nome del target misurato
+  targetId: string; // FK -> Target.id (riferimento diretto e univoco)
+  target: string; // nome del target misurato (denormalizzato, solo per visualizzazione)
   scenarioPath: string; // path dello scenario, es. "/images"
   proto: Protocol; // protocollo richiesto
   actualProto: Protocol; // protocollo effettivo (può ricadere su HTTP/2)

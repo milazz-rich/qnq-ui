@@ -2,9 +2,10 @@ import { Component, computed, DestroyRef, inject, OnInit, signal, WritableSignal
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, forkJoin, of } from 'rxjs';
 import { LoadingService } from '../../../../core/state/loading.service';
-import { Protocol, Result, Scenario, Session } from '../../../../models';
+import { Protocol, Result, Scenario, Session, Target } from '../../../../models';
 import { ScenarioService } from '../../../scenarios/data/scenario.service';
 import { SessionService } from '../../../sessions/data/session.service';
+import { TargetService } from '../../../targets/data/target.service';
 import { ResultFilters, ResultService } from '../../data/result.service';
 
 /** Riga di confronto H2 vs H3 per una singola metrica aggregata. */
@@ -45,6 +46,8 @@ interface CompareMetric {
 /** Riga della tabella delle misurazioni grezze. */
 interface RunRow {
   result: Result;
+  hasTag: boolean;
+  tagText: string;
   protoLabel: string;
   protoClass: string;
   totalText: string;
@@ -80,6 +83,7 @@ export class Results implements OnInit {
   private readonly resultService = inject(ResultService);
   private readonly scenarioService = inject(ScenarioService);
   private readonly sessionService = inject(SessionService);
+  private readonly targetService = inject(TargetService);
   private readonly loadingService = inject(LoadingService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -89,6 +93,16 @@ export class Results implements OnInit {
   private readonly results = signal<Result[]>([]);
   private readonly scenarios = signal<Scenario[]>([]);
   private readonly sessions = signal<Session[]>([]);
+  private readonly targets = signal<Target[]>([]);
+
+  /** Etichetta del Target per id (Result.targetId è un FK diretto e univoco). */
+  private readonly targetTagById = computed(() => {
+    const map = new Map<string, string>();
+    for (const t of this.targets()) {
+      map.set(t.id, t.tag);
+    }
+    return map;
+  });
 
   // ---- filtri ----
   protected readonly scenarioFilter = signal<string>('all');
@@ -162,8 +176,8 @@ export class Results implements OnInit {
     const done = this.completedResults();
     const h2 = done.filter((r) => r.actualProto === 'HTTP/2');
     const h3 = done.filter((r) => r.actualProto === 'HTTP/3');
-    const ms = (v: number) => `${v} ms`;
-    const kb = (v: number) => (v >= 1024 ? `${(v / 1024).toFixed(2)} MB` : `${v} KB`);
+    const ms = (v: number) => `${v.toFixed(3)} ms`;
+    const kb = (v: number) => (v >= 1024 ? `${(v / 1024).toFixed(3)} MB` : `${v.toFixed(3)} KB`);
     return [
       this.buildCompareRow('Tempo totale di risposta medio', this.mean(h2, 'total'), this.mean(h3, 'total'), ms),
       this.buildCompareRow('Time to First Byte medio', this.mean(h2, 'ttfb'), this.mean(h3, 'ttfb'), ms),
@@ -225,7 +239,7 @@ export class Results implements OnInit {
             if (vals.length === 0) {
               return null;
             }
-            return { name: slot.session.name, proto, value: this.round(vals) };
+            return { name: slot.session.name, proto, value: this.average(vals) };
           })
           .filter((x): x is { name: string; proto: Protocol; value: number } => x !== null),
       );
@@ -235,7 +249,7 @@ export class Results implements OnInit {
       const bars: CompareBar[] = raw.map((r) => ({
         name: r.name,
         protoLabel: r.proto,
-        valueText: `${r.value} ms`,
+        valueText: `${r.value.toFixed(3)} ms`,
         heightPct: Math.max(4, (r.value / top) * 100),
         colorVar: r.proto === 'HTTP/3' ? H3_COLOR : H2_COLOR,
       }));
@@ -268,33 +282,39 @@ export class Results implements OnInit {
       const rs = done.filter((r) => r.target === name);
       const h3 = rs.filter((r) => r.actualProto === 'HTTP/3').length;
       const proto: Protocol = h3 * 2 >= rs.length ? 'HTTP/3' : 'HTTP/2';
-      return { name, value: this.round(rs.map((r) => r.total)), proto };
+      return { name, value: this.average(rs.map((r) => r.total)), proto };
     });
     const top = Math.ceil(Math.max(...raw.map((r) => r.value)) / 50) * 50 + 50;
     return raw.map((r) => ({
       name: r.name,
-      valueText: `${r.value} ms`,
+      valueText: `${r.value.toFixed(3)} ms`,
       heightPct: Math.max(4, (r.value / top) * 100),
       colorVar: r.proto === 'HTTP/3' ? H3_COLOR : H2_COLOR,
     }));
   });
 
   // ---- tabella misurazioni grezze ----
-  protected readonly runRows = computed<RunRow[]>(() =>
-    this.filteredResults().map((r) => ({
-      result: r,
-      protoLabel: r.proto,
-      protoClass: this.protoTintClass(r.proto),
-      totalText: r.status === 'completed' ? `${r.total} ms` : '—',
-      ttfbText: r.status === 'completed' ? `${r.ttfb} ms` : '—',
-      kbText: r.status === 'completed' ? this.formatKb(r.kb) : '—',
-      statusLabel: r.status === 'completed' ? 'Completato' : 'Fallito',
-      statusClass:
-        r.status === 'completed'
-          ? 'bg-[var(--ok-soft)] text-[var(--ok)]'
-          : 'bg-[var(--danger-soft)] text-[var(--danger)]',
-    })),
-  );
+  protected readonly runRows = computed<RunRow[]>(() => {
+    const tagById = this.targetTagById();
+    return this.filteredResults().map((r) => {
+      const tag = tagById.get(r.targetId) ?? '';
+      return {
+        result: r,
+        hasTag: tag.trim() !== '',
+        tagText: tag,
+        protoLabel: r.proto,
+        protoClass: this.protoTintClass(r.proto),
+        totalText: r.status === 'completed' ? `${r.total.toFixed(3)} ms` : '—',
+        ttfbText: r.status === 'completed' ? `${r.ttfb.toFixed(3)} ms` : '—',
+        kbText: r.status === 'completed' ? this.formatKb(r.kb) : '—',
+        statusLabel: r.status === 'completed' ? 'Completato' : 'Fallito',
+        statusClass:
+          r.status === 'completed'
+            ? 'bg-[var(--ok-soft)] text-[var(--ok)]'
+            : 'bg-[var(--danger-soft)] text-[var(--danger)]',
+      };
+    });
+  });
   protected readonly runCountText = computed(() => `${this.runRows().length} misurazioni`);
 
   // ---- drawer di dettaglio ----
@@ -317,12 +337,12 @@ export class Results implements OnInit {
       },
       {
         label: 'Tempo totale di risposta',
-        value: r.status === 'completed' ? `${r.total} ms` : '—',
+        value: r.status === 'completed' ? `${r.total.toFixed(3)} ms` : '—',
         colorClass: 'text-[var(--text)]',
       },
       {
         label: 'Time to First Byte',
-        value: r.status === 'completed' ? `${r.ttfb} ms` : '—',
+        value: r.status === 'completed' ? `${r.ttfb.toFixed(3)} ms` : '—',
         colorClass: 'text-[var(--text)]',
       },
       {
@@ -348,12 +368,14 @@ export class Results implements OnInit {
       results: this.resultService.list().pipe(catchError(() => of<Result[]>([]))),
       scenarios: this.scenarioService.list().pipe(catchError(() => of<Scenario[]>([]))),
       sessions: this.sessionService.list().pipe(catchError(() => of<Session[]>([]))),
+      targets: this.targetService.list().pipe(catchError(() => of<Target[]>([]))),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(({ results, scenarios, sessions }) => {
+      .subscribe(({ results, scenarios, sessions, targets }) => {
         this.results.set(results);
         this.scenarios.set(scenarios);
         this.sessions.set(sessions);
+        this.targets.set(targets);
         this.loaded.set(true);
       });
   }
@@ -435,9 +457,9 @@ export class Results implements OnInit {
       Scenario: r.scenarioPath,
       'Protocollo richiesto': r.proto,
       'Protocollo effettivo': r.actualProto,
-      'Tempo totale (ms)': r.status === 'completed' ? r.total : null,
-      'TTFB (ms)': r.status === 'completed' ? r.ttfb : null,
-      'Dati trasferiti (KB)': r.status === 'completed' ? r.kb : null,
+      'Tempo totale (ms)': r.status === 'completed' ? Number(r.total.toFixed(3)) : null,
+      'TTFB (ms)': r.status === 'completed' ? Number(r.ttfb.toFixed(3)) : null,
+      'Dati trasferiti (KB)': r.status === 'completed' ? Number(r.kb.toFixed(3)) : null,
       Stato: r.status === 'completed' ? 'Completato' : 'Fallito',
       Timestamp: r.time,
     }));
@@ -447,19 +469,25 @@ export class Results implements OnInit {
     XLSX.writeFile(workbook, `risultati-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
+  /**
+   * Media di una metrica su un insieme di Result, a piena precisione: la
+   * riduzione a 3 decimali avviene solo in visualizzazione (vedi `ms`/`kb` in
+   * `compareRows`), mai su questo valore intermedio.
+   */
   private mean(list: Result[], key: 'total' | 'ttfb' | 'kb'): number {
     if (list.length === 0) return 0;
-    return Math.round(list.reduce((sum, r) => sum + r[key], 0) / list.length);
+    return list.reduce((sum, r) => sum + r[key], 0) / list.length;
   }
 
-  /** Media intera di un elenco di valori numerici (0 se vuoto). */
-  private round(vals: number[]): number {
+  /** Media a piena precisione di un elenco di valori numerici (0 se vuoto). */
+  private average(vals: number[]): number {
     if (vals.length === 0) return 0;
-    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+    return vals.reduce((a, b) => a + b, 0) / vals.length;
   }
 
+  /** Formatta un valore in KB a 3 decimali, convertendo in MB oltre 1024 KB. */
   private formatKb(kb: number): string {
-    return kb >= 1024 ? `${(kb / 1024).toFixed(2)} MB` : `${kb} KB`;
+    return kb >= 1024 ? `${(kb / 1024).toFixed(3)} MB` : `${kb.toFixed(3)} KB`;
   }
 
   private buildCompareRow(

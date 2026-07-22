@@ -1,6 +1,6 @@
 import { Protocol } from './protocol.model';
 
-export type SessionStatus = 'pending' | 'running' | 'completed';
+export type SessionStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 /** Stato di un singolo item durante l'esecuzione: `failed` quando il backend non riesce a misurarlo (client non supportato, configurazione rotta). */
 export type SessionItemStatus = 'pending' | 'running' | 'completed' | 'failed';

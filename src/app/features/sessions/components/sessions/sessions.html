@@ -289,26 +289,61 @@
       <div class="flex items-center gap-3 border-t border-[var(--border)] px-6 py-4">
         <span class="font-mono text-[12.5px] text-[var(--text-muted)]">{{ editorTotalText() }}</span>
         <div class="flex-1"></div>
-        <button
-          type="button"
-          (click)="closeEditor()"
-          class="h-11 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[18px] text-sm font-semibold text-[var(--text)]"
-        >
-          Annulla
-        </button>
-        <button
-          type="button"
-          (click)="saveEditor()"
-          [disabled]="editorSaveDisabled()"
-          class="h-11 rounded-[10px] border-none px-[18px] text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed"
-          [class]="
-            editorSaveDisabled()
-              ? 'bg-[var(--border-strong)]'
-              : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'
-          "
-        >
-          {{ editorSaveLabel() }}
-        </button>
+        @if (editorMode() === 'repropose') {
+          <!-- sessione già eseguita: scelta esplicita tra duplicare o applicare in place -->
+          <button
+            type="button"
+            (click)="closeEditor()"
+            class="h-[38px] rounded-[9px] border border-[var(--border)] bg-[var(--surface-2)] px-[14px] text-[12.5px] font-semibold text-[var(--text)]"
+          >
+            Annulla
+          </button>
+          <button
+            type="button"
+            (click)="saveEditorDuplicate()"
+            [disabled]="editorSaveDisabled()"
+            title="Crea una nuova sessione: duplica con le modifiche"
+            class="h-[38px] rounded-[9px] border border-[var(--border)] bg-[var(--surface-2)] px-[14px] text-[12.5px] font-semibold text-[var(--text)] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Duplica
+          </button>
+          <button
+            type="button"
+            (click)="saveEditorInPlace()"
+            [disabled]="editorSaveDisabled()"
+            title="Applica alla sessione corrente: nessuna nuova sessione viene creata"
+            class="h-[38px] rounded-[9px] border-none px-[14px] text-[12.5px] font-semibold text-white transition-colors disabled:cursor-not-allowed"
+            [class]="
+              editorSaveDisabled()
+                ? 'bg-[var(--border-strong)]'
+                : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'
+            "
+          >
+            Modifica
+          </button>
+        } @else {
+          <!-- sessione pending: unica azione, applica in place -->
+          <button
+            type="button"
+            (click)="closeEditor()"
+            class="h-11 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[18px] text-sm font-semibold text-[var(--text)]"
+          >
+            Annulla
+          </button>
+          <button
+            type="button"
+            (click)="saveEditorInPlace()"
+            [disabled]="editorSaveDisabled()"
+            class="h-11 rounded-[10px] border-none px-[18px] text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed"
+            [class]="
+              editorSaveDisabled()
+                ? 'bg-[var(--border-strong)]'
+                : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'
+            "
+          >
+            {{ editorSaveLabel() }}
+          </button>
+        }
       </div>
     </div>
   </div>

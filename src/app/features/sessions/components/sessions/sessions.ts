@@ -71,10 +71,11 @@ export class Sessions implements OnInit {
   protected readonly cards = computed<SessionCard[]>(() =>
     this.sessions().map((session) => {
       const reps = session.items.reduce((sum, i) => sum + i.total, 0);
+      const displayStatus = this.displayStatus(session);
       return {
         session,
-        statusLabel: this.statusLabel(session.status),
-        badgeClass: this.badgeClass(session.status),
+        statusLabel: this.statusLabel(displayStatus),
+        badgeClass: this.badgeClass(displayStatus),
         metaText: `${this.formatWhen(session)} · ${session.items.length} test · ${reps} misurazioni`,
         chips: session.items.map((i) => ({
           label: i.label,
@@ -128,17 +129,15 @@ export class Sessions implements OnInit {
   protected readonly editorName = signal('');
   protected readonly saving = signal(false);
 
-  protected readonly editorTitle = computed(() =>
-    this.editorMode() === 'edit' ? 'Modifica sessione' : 'Modifica e riproponi',
-  );
+  /** Il titolo è unico per entrambi i modi: cambia solo il footer (vedi sotto). */
+  protected readonly editorTitle = computed(() => 'Modifica sessione');
   protected readonly editorSub = computed(() =>
     this.editorMode() === 'edit'
       ? 'Rimuovi gli item o riordina la sequenza di esecuzione.'
-      : 'Parti dagli stessi item: rimuovili o riordinali, poi crea una nuova sessione.',
+      : 'Questa sessione è già stata eseguita. Modifica il nome, gli item o la sequenza, poi scegli come applicare le modifiche.',
   );
-  protected readonly editorSaveLabel = computed(() =>
-    this.saving() ? 'Salvataggio…' : this.editorMode() === 'edit' ? 'Salva modifiche' : 'Crea sessione',
-  );
+  /** Usata solo dal footer a singolo pulsante (modalità "edit", sessione pending). */
+  protected readonly editorSaveLabel = computed(() => (this.saving() ? 'Salvataggio…' : 'Salva modifiche'));
   protected readonly editorSaveDisabled = computed(
     () => this.saving() || this.editorItems().length === 0 || this.editorName().trim() === '',
   );
@@ -214,7 +213,8 @@ export class Sessions implements OnInit {
     this.editorItems.set(
       session.items.map((i) => ({ ...i, done: 0, status: 'pending' })),
     );
-    this.editorName.set(`${session.name} (copia)`);
+    // nessun suffisso "(copia)": la scelta duplica/in-place avviene al salvataggio
+    this.editorName.set(session.name);
     this.editorOpen.set(true);
   }
 
@@ -242,7 +242,15 @@ export class Sessions implements OnInit {
     this.editorItems.update((items) => items.filter((_, i) => i !== index));
   }
 
-  protected saveEditor(): void {
+  /**
+   * Salva applicando le modifiche in place sulla sessione sorgente
+   * (SessionService.update): unico pulsante disponibile in modalità "edit"
+   * (sessione pending), oppure pulsante "Modifica" nel footer a tre scelte
+   * di "repropose" (sessione già eseguita) — in tal caso lo stato torna a
+   * "pending" (coerente con gli item, già azzerati in openRepropose) così
+   * la sessione risulta di nuovo avviabile, senza creare un duplicato.
+   */
+  protected saveEditorInPlace(): void {
     if (this.editorSaveDisabled() || !this.editorSource) {
       return;
     }
@@ -250,26 +258,51 @@ export class Sessions implements OnInit {
     const source = this.editorSource;
     const items = this.editorItems();
     const name = this.editorName().trim();
+    const reproposing = this.editorMode() === 'repropose';
 
-    const request =
-      this.editorMode() === 'edit'
-        ? this.sessionService.update(source.id, {
-            name,
-            when: source.when,
-            status: source.status,
-            currentIndex: source.currentIndex,
-            items,
-          })
-        : this.sessionService.create(this.newDraft(name, items));
+    this.sessionService
+      .update(source.id, {
+        name,
+        when: source.when,
+        status: reproposing ? 'pending' : source.status,
+        currentIndex: reproposing ? 0 : source.currentIndex,
+        items,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.saving.set(false);
+          this.editorOpen.set(false);
+          this.refresh();
+        },
+        error: () => this.saving.set(false),
+      });
+  }
 
-    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: () => {
-        this.saving.set(false);
-        this.editorOpen.set(false);
-        this.refresh();
-      },
-      error: () => this.saving.set(false),
-    });
+  /**
+   * Duplica: crea una nuova sessione con gli item correnti dell'editor
+   * (comportamento invariato della precedente "Modifica e riproponi").
+   * Pulsante disponibile solo nel footer a tre scelte di "repropose".
+   */
+  protected saveEditorDuplicate(): void {
+    if (this.editorSaveDisabled()) {
+      return;
+    }
+    this.saving.set(true);
+    const items = this.editorItems();
+    const name = this.editorName().trim();
+
+    this.sessionService
+      .create(this.newDraft(name, items))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.saving.set(false);
+          this.editorOpen.set(false);
+          this.refresh();
+        },
+        error: () => this.saving.set(false),
+      });
   }
 
   // ---- eliminazione ----
@@ -332,7 +365,8 @@ export class Sessions implements OnInit {
           return;
         }
         this.sessions.update((list) => list.map((s) => (s.id === updated.id ? updated : s)));
-        if (updated.status === 'completed') {
+        // "failed" è terminale quanto "completed": il backend non riproverà la sessione.
+        if (updated.status === 'completed' || updated.status === 'failed') {
           this.stopPolling();
         }
       });
@@ -439,12 +473,28 @@ export class Sessions implements OnInit {
     }
   }
 
+  /**
+   * Stato "visivo" di una sessione: una sessione "completed" con almeno un
+   * item "failed" è mostrata come Fallita, allo stesso modo di una sessione
+   * con status "failed" esplicito — coerente col design importato. Le azioni
+   * disponibili (Rilancia/Modifica e riproponi) restano invece condizionate
+   * allo status grezzo, non a questo stato derivato.
+   */
+  private displayStatus(session: Session): Session['status'] {
+    const hasFailedItem = session.items.some((i) => i.status === 'failed');
+    return session.status === 'failed' || (session.status === 'completed' && hasFailedItem)
+      ? 'failed'
+      : session.status;
+  }
+
   private statusLabel(status: Session['status']): string {
     switch (status) {
       case 'running':
         return 'In corso';
       case 'completed':
         return 'Completata';
+      case 'failed':
+        return 'Fallita';
       default:
         return 'Da avviare';
     }
@@ -456,6 +506,8 @@ export class Sessions implements OnInit {
         return 'bg-[var(--accent-soft)] text-[var(--accent)]';
       case 'completed':
         return 'bg-[var(--ok-soft)] text-[var(--ok)]';
+      case 'failed':
+        return 'bg-[var(--danger-soft)] text-[var(--danger)]';
       default:
         return 'bg-[var(--warn-soft)] text-[var(--warn)]';
     }

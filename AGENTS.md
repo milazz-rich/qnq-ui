@@ -204,12 +204,10 @@ export interface SessionItem {
 ```ts
 import { Protocol } from './protocol.model';
 
-export type SessionStatus = 'pending' | 'running' | 'completed';
+export type SessionStatus = 'pending' | 'running' | 'completed' | 'failed';
 
-// "failed": il backend non riesce a misurare l'item (client non supportato,
-// configurazione rotta). È uno stato SOLO di SessionRunItem, non di Session:
-// una Session non ha uno stato "failed" complessivo, resta pending/running/completed
-// anche se uno o più suoi item sono falliti (vedi nota sotto).
+// "failed" su SessionRunItem: il backend non riesce a misurare l'item (client
+// non supportato, configurazione rotta).
 export type SessionItemStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 /** Stato di avanzamento runtime di un SessionItem dentro una Session. */
@@ -227,7 +225,7 @@ export interface Session {
   id: string;
   name: string;
   when: string;                  // timestamp ISO 8601
-  status: SessionStatus;         // pending | running | completed
+  status: SessionStatus;         // pending | running | completed | failed
   currentIndex: number;          // indice dell'item in esecuzione
   items: SessionRunItem[];       // avanzamento per ciascun item
 }
@@ -239,6 +237,19 @@ Session**, un item `failed` va trattato come **risolto**, esattamente come
 l'avanzamento né il conteggio "N / totale test" in nessuna UI (elenco Sessioni,
 pannello di avanzamento, riepiloghi). Va invece distinto visivamente (colore
 `--danger`, label "Fallito"/"Non misurabile") perché non rappresenta un successo.
+
+Nota su `Session.status === 'failed'`: rappresenta un fallimento dell'intera
+Session (distinto dal fallimento di un singolo item). Nell'UI (`Sessions`,
+`Dashboard`) lo stato **visualizzato** è calcolato da un helper `displayStatus`
+che tratta come "Fallita" (colore `--danger`) sia `status === 'failed'` sia
+`status === 'completed'` con almeno un item `failed` — coerente col design
+importato. Le azioni disponibili (`Rilancia` / `Modifica e riproponi` in
+`Sessions`) restano condizionate allo **status grezzo**, non a questo stato
+derivato: sono mostrate solo per `pending` (Avvia/Modifica) e `completed`
+(Rilancia/Modifica e riproponi, anche se alcuni item sono `failed`); una
+Session con `status === 'failed'` non mostra queste azioni, solo Elimina — il
+polling (`Sessions.startPolling`) si ferma su `completed` **e** `failed`
+(entrambi terminali).
 
 ### `result.model.ts` — misura prodotta
 
@@ -253,7 +264,8 @@ export interface Result {
   idx: number;
   sessionId: string;             // FK -> Session.id (Sessione univoca generatrice)
   sessionItemId: string;         // FK -> SessionRunItem.sessionItemId (configurazione target/scenario/client)
-  target: string;                // nome del target misurato
+  targetId: string;              // FK -> Target.id (riferimento diretto e univoco)
+  target: string;                // nome del target misurato (denormalizzato, solo per visualizzazione)
   scenarioPath: string;          // path dello scenario, es. "/images"
   proto: Protocol;               // protocollo richiesto
   actualProto: Protocol;         // protocollo effettivo (può ricadere su HTTP/2)
@@ -264,6 +276,14 @@ export interface Result {
   time: string;                  // timestamp ISO 8601
 }
 ```
+
+Nota su `Result.target` vs `Result.targetId`: `target` resta il nome
+denormalizzato (solo visualizzazione, es. nella tabella grezza e nel drawer di
+dettaglio); `targetId` è il riferimento affidabile per qualunque lookup verso
+`Target`. Per mostrare l'etichetta (tag) del Target nella tabella grezza di
+Risultati (`Results`), il componente carica anche `TargetService.list()` e usa
+`targetId` per il lookup diretto (mappa id → tag) — nessuna ambiguità anche se
+più Target condividono lo stesso nome, a differenza di un match per nome.
 
 ### Relazioni
 
@@ -419,8 +439,27 @@ export class SessionService {
   (nessuna scelta) e le sessioni senza Result. A destra il tempo medio **per
   server**. Nessun dato simulato: tutto deriva da `ResultService`.
 - **Nome sessione modificabile**: il modal "Modifica sessione" (`Sessions`)
-  espone un campo nome (`editorName`) oltre a rimozione/riordino degli item; il
-  salvataggio in modalità `edit` passa il nuovo nome a `SessionService.update`.
+  espone un campo nome (`editorName`) oltre a rimozione/riordino degli item.
+- **Footer del modal "Modifica sessione"**: dipende da `editorMode`
+  (`'edit' | 'repropose'`, impostato da `openEdit`/`openRepropose`), non dallo
+  status della Session — coerente col design importato:
+  - `editorMode() === 'edit'` (aperto da una Session **pending**, azione
+    "Modifica" nella card): footer a singolo pulsante ("Annulla" +
+    `editorSaveLabel()`/`saveEditorInPlace()`), invariato.
+  - `editorMode() === 'repropose'` (aperto da una Session **completed**,
+    azione "Modifica e riproponi" nella card): footer a tre pulsanti —
+    "Annulla" (chiude senza salvare), "Duplica" (`saveEditorDuplicate()`,
+    crea una nuova Session via `SessionService.create`, comportamento
+    invariato della precedente "Modifica e riproponi"), "Modifica"
+    (`saveEditorInPlace()`, applica in place via `SessionService.update`
+    sulla Session sorgente, riportandone `status` a `'pending'` e
+    `currentIndex` a `0` — coerente con gli item, già azzerati a `pending`
+    in `openRepropose` — così la Session risulta di nuovo avviabile senza
+    creare un duplicato). Nessuna delle due scelte è condizionata allo
+    `status` grezzo della Session: entrambe sono sempre disponibili quando il
+    modal è in modalità `repropose`.
+  - `saveEditorInPlace()`/`saveEditorDuplicate()` condividono la stessa
+    condizione di abilitazione (`editorSaveDisabled`).
 
 ---
 

@@ -314,16 +314,16 @@
       </div>
 
       <div
-        class="grid grid-cols-[1fr_0.9fr_0.9fr_0.8fr_1fr_0.9fr_92px] gap-3 border-b border-[var(--border)] bg-[var(--surface-2)] px-[22px] py-[11px] font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+        class="grid grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,0.9fr)_92px] gap-3 border-b border-[var(--border)] bg-[var(--surface-2)] px-[22px] py-[11px] font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
       >
-        <span>Server</span><span>Proto</span><span>Tempo tot.</span><span>TTFB</span
-        ><span>Dati</span><span>Stato</span><span></span>
+        <span>Server</span><span>Etichetta</span><span>Proto</span><span>Tempo tot.</span
+        ><span>TTFB</span><span>Dati</span><span>Stato</span><span></span>
       </div>
 
       @if (runRows().length > 0) {
         @for (row of runRows(); track row.result.id) {
           <div
-            class="grid grid-cols-[1fr_0.9fr_0.9fr_0.8fr_1fr_0.9fr_92px] items-center gap-3 border-b border-[var(--border)] px-[22px] py-[13px] last:border-b-0"
+            class="grid grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,0.9fr)_92px] items-center gap-3 border-b border-[var(--border)] px-[22px] py-[13px] last:border-b-0"
           >
             <div class="min-w-0">
               <div class="truncate font-mono text-[13px] font-semibold text-[var(--text)]">
@@ -333,6 +333,14 @@
                 {{ row.result.scenarioPath }}
               </div>
             </div>
+            <span>
+              @if (row.hasTag) {
+                <span
+                  class="inline-block rounded-[20px] border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-[3px] text-[11px] font-semibold whitespace-nowrap text-[var(--text-muted)]"
+                  >{{ row.tagText }}</span
+                >
+              }
+            </span>
             <span>
               <span
                 class="rounded-[20px] px-2.5 py-[3px] font-mono text-[11px] font-semibold whitespace-nowrap"

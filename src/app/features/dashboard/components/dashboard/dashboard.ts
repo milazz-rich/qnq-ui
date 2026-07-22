@@ -104,7 +104,7 @@ export class Dashboard implements OnInit {
     this.sessions()
       .slice(0, 5)
       .map((session) => {
-        const meta = this.sessionStatusMeta(session.status);
+        const meta = this.sessionStatusMeta(this.displayStatus(session));
         const total = session.items.reduce((sum, i) => sum + i.total, 0);
         // "failed" è un esito risolto (il backend non riproverà l'item): conta
         // per intero ai fini dell'avanzamento, come un item completato.
@@ -226,6 +226,19 @@ export class Dashboard implements OnInit {
     };
   }
 
+  /**
+   * Stato "visivo" di una sessione: una sessione "completed" con almeno un
+   * item "failed" è mostrata come Fallita, allo stesso modo di una sessione
+   * con status "failed" esplicito — coerente col design importato e con la
+   * stessa logica usata nella sezione Sessioni.
+   */
+  private displayStatus(session: Session): Session['status'] {
+    const hasFailedItem = session.items.some((i) => i.status === 'failed');
+    return session.status === 'failed' || (session.status === 'completed' && hasFailedItem)
+      ? 'failed'
+      : session.status;
+  }
+
   /** Classi di stile (badge/dot/label) per lo stato di una sessione. */
   private sessionStatusMeta(status: Session['status']): {
     label: string;
@@ -244,6 +257,12 @@ export class Dashboard implements OnInit {
           label: 'In corso',
           badgeClass: 'bg-[var(--accent-soft)] text-[var(--accent)]',
           dotClass: 'bg-[var(--accent)]',
+        };
+      case 'failed':
+        return {
+          label: 'Fallita',
+          badgeClass: 'bg-[var(--danger-soft)] text-[var(--danger)]',
+          dotClass: 'bg-[var(--danger)]',
         };
       default:
         return {
