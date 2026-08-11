@@ -47,6 +47,7 @@ interface CompareMetric {
 /** Riga della tabella delle misurazioni grezze. */
 interface RunRow {
   result: Result;
+  serverName: string;
   hasTag: boolean;
   tagText: string;
   clientLabel: string;
@@ -114,6 +115,19 @@ export class Results implements OnInit {
     const map = new Map<string, string>();
     for (const t of this.targets()) {
       map.set(t.id, t.tag);
+    }
+    return map;
+  });
+
+  /**
+   * Nome pulito del Target per id, senza l'indirizzo (host:porta) che il
+   * backend concatena in `Result.target` (es. "Caddy (milaz.it:8444)").
+   * Fallback sul valore denormalizzato se il Target non è (più) in elenco.
+   */
+  private readonly targetNameById = computed(() => {
+    const map = new Map<string, string>();
+    for (const t of this.targets()) {
+      map.set(t.id, t.name);
     }
     return map;
   });
@@ -339,11 +353,13 @@ export class Results implements OnInit {
   // ---- tabella misurazioni grezze (solo la pagina corrente) ----
   protected readonly runRows = computed<RunRow[]>(() => {
     const tagById = this.targetTagById();
+    const nameById = this.targetNameById();
     const clientById = this.clientNameById();
     return this.pageResults().map((r) => {
       const tag = tagById.get(r.targetId) ?? '';
       return {
         result: r,
+        serverName: nameById.get(r.targetId) ?? r.target,
         hasTag: tag.trim() !== '',
         tagText: tag,
         clientLabel: clientById.get(r.clientId) ?? '—',
@@ -574,14 +590,21 @@ export class Results implements OnInit {
    * soddisfano i filtri correnti (sessione, scenario, client), non la sola
    * pagina visibile in tabella: l'export usa `filteredResults`, cioè l'insieme
    * completo caricato per gli aggregati.
+   * `Target` è il nome pulito del Target (senza indirizzo, via
+   * `targetNameById`, coerente con la colonna Server della tabella grezza);
+   * l'indirizzo non compare più in export, sostituito dalla colonna
+   * `Etichetta` (tag del Target, via `targetTagById`).
    * SheetJS è caricata on-demand (~300 KB) solo al click, per non appesantire
    * il bundle iniziale con una libreria usata raramente.
    */
   protected async exportExcel(): Promise<void> {
     const XLSX = await import('xlsx');
+    const nameById = this.targetNameById();
+    const tagById = this.targetTagById();
     const clientById = this.clientNameById();
     const rows = this.filteredResults().map((r) => ({
-      Target: r.target,
+      Target: nameById.get(r.targetId) ?? r.target,
+      Etichetta: tagById.get(r.targetId) ?? '',
       Client: clientById.get(r.clientId) ?? '',
       Scenario: r.scenarioPath,
       'Protocollo richiesto': r.proto,
