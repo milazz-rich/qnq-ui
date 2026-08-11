@@ -285,6 +285,13 @@ Risultati (`Results`), il componente carica anche `TargetService.list()` e usa
 `targetId` per il lookup diretto (mappa id → tag) — nessuna ambiguità anche se
 più Target condividono lo stesso nome, a differenza di un match per nome.
 
+> **Nota storica**: `targetId` è stato aggiunto a `Result` in un secondo
+> momento (il campo non esisteva nello schema originale, che aveva solo
+> `target` denormalizzato). I vecchi record `Result` privi di `targetId` sono
+> stati migrati/ripuliti direttamente sul database backend — non esistono più
+> record legacy senza questo campo, quindi il codice frontend può assumerlo
+> sempre presente e non necessita di fallback per la sua assenza.
+
 ### Relazioni
 
 ```
@@ -460,6 +467,12 @@ export class SessionService {
     modal è in modalità `repropose`.
   - `saveEditorInPlace()`/`saveEditorDuplicate()` condividono la stessa
     condizione di abilitazione (`editorSaveDisabled`).
+- **Arrotondamento dei valori numerici (Risultati)**: tempo totale, TTFB e
+  dati trasferiti (KB) sono mostrati arrotondati a **3 cifre decimali**
+  (`.toFixed(3)`) ovunque compaiano — tabella grezza, drawer di dettaglio,
+  etichette dei grafici, esportazione Excel. È un arrotondamento **solo di
+  visualizzazione**: i valori grezzi di `Result` (`total`/`ttfb`/`kb`) non
+  vengono mai alterati né troncati prima del calcolo di medie/aggregati.
 
 ---
 
