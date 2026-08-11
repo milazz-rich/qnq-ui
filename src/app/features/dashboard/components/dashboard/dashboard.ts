@@ -185,7 +185,10 @@ export class Dashboard implements OnInit {
       scenarios: this.scenarioService.list().pipe(catchError(() => of<Scenario[]>([]))),
       clients: this.clientService.list().pipe(catchError(() => of<Client[]>([]))),
       sessions: this.sessionService.list().pipe(catchError(() => of<Session[]>([]))),
-      results: this.resultService.list().pipe(catchError(() => of<Result[]>([]))),
+      // GET /results è paginato (pageSize max 200, default 50): il confronto
+      // HTTP/2 vs HTTP/3 in dashboard media tutte le misure, quindi serve
+      // listAll che ricompone l'insieme completo dalle singole pagine.
+      results: this.resultService.listAll().pipe(catchError(() => of<Result[]>([]))),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(({ targets, scenarios, clients, sessions, results }) => {

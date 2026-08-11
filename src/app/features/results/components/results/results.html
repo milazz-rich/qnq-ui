@@ -48,6 +48,21 @@
           }
         </select>
       </div>
+      <div>
+        <label
+          class="mb-[7px] block font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+          >Client</label
+        >
+        <select
+          [value]="clientFilter()"
+          (change)="setClientFilter($any($event.target).value)"
+          class="h-10 min-w-[160px] cursor-pointer rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13px] font-medium text-[var(--text)] shadow-[var(--shadow-sm)] outline-none"
+        >
+          @for (opt of clientOptions(); track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+      </div>
     </div>
 
     <!-- CONFRONTO PROTOCOLLI -->
@@ -314,16 +329,17 @@
       </div>
 
       <div
-        class="grid grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,0.9fr)_92px] gap-3 border-b border-[var(--border)] bg-[var(--surface-2)] px-[22px] py-[11px] font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+        class="grid grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1fr)_92px] gap-3 border-b border-[var(--border)] bg-[var(--surface-2)] px-[22px] py-[11px] font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
       >
-        <span>Server</span><span>Etichetta</span><span>Proto</span><span>Tempo tot.</span
-        ><span>TTFB</span><span>Dati</span><span>Stato</span><span></span>
+        <span>Server</span><span>Etichetta</span><span>Client</span><span>Proto</span
+        ><span>Tempo tot.</span><span>TTFB</span><span>Dati</span><span>Stato</span
+        ><span></span>
       </div>
 
       @if (runRows().length > 0) {
         @for (row of runRows(); track row.result.id) {
           <div
-            class="grid grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,0.9fr)_92px] items-center gap-3 border-b border-[var(--border)] px-[22px] py-[13px] last:border-b-0"
+            class="grid grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1fr)_92px] items-center gap-3 border-b border-[var(--border)] px-[22px] py-[13px] last:border-b-0"
           >
             <div class="min-w-0">
               <div class="truncate font-mono text-[13px] font-semibold text-[var(--text)]">
@@ -341,6 +357,9 @@
                 >
               }
             </span>
+            <span class="truncate font-mono text-[12.5px] text-[var(--text-muted)]">{{
+              row.clientLabel
+            }}</span>
             <span>
               <span
                 class="rounded-[20px] px-2.5 py-[3px] font-mono text-[11px] font-semibold whitespace-nowrap"
@@ -377,6 +396,29 @@
           </p>
         </div>
       }
+
+      <!-- PAGINAZIONE (server-side: ogni cambio pagina richiede solo quella pagina) -->
+      <div class="flex items-center justify-end gap-3 px-[22px] py-3.5">
+        <span class="font-mono text-xs text-[var(--text-muted)]">{{ paginationText() }}</span>
+        <div class="flex gap-2">
+          <button
+            type="button"
+            (click)="prevPage()"
+            [disabled]="!canPrevPage()"
+            class="h-8 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3.5 text-[12.5px] font-medium text-[var(--text)] transition-colors hover:border-[var(--border-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            ← Precedente
+          </button>
+          <button
+            type="button"
+            (click)="nextPage()"
+            [disabled]="!canNextPage()"
+            class="h-8 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3.5 text-[12.5px] font-medium text-[var(--text)] transition-colors hover:border-[var(--border-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Successiva →
+          </button>
+        </div>
+      </div>
     </div>
   }
 </div>

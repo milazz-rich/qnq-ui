@@ -265,6 +265,7 @@ export interface Result {
   sessionId: string;             // FK -> Session.id (Sessione univoca generatrice)
   sessionItemId: string;         // FK -> SessionRunItem.sessionItemId (configurazione target/scenario/client)
   targetId: string;              // FK -> Target.id (riferimento diretto e univoco)
+  clientId: string;              // FK -> Client.id (riferimento diretto e univoco)
   target: string;                // nome del target misurato (denormalizzato, solo per visualizzazione)
   scenarioPath: string;          // path dello scenario, es. "/images"
   proto: Protocol;               // protocollo richiesto
@@ -285,12 +286,56 @@ Risultati (`Results`), il componente carica anche `TargetService.list()` e usa
 `targetId` per il lookup diretto (mappa id → tag) — nessuna ambiguità anche se
 più Target condividono lo stesso nome, a differenza di un match per nome.
 
+Stesso schema per `clientId`: è il FK verso `Client` e alimenta sia la colonna
+"Client" della tabella grezza (lookup id → nome via `ClientService.list()`,
+identico a quello di `targetId`) sia il filtro per Client.
+
 > **Nota storica**: `targetId` è stato aggiunto a `Result` in un secondo
 > momento (il campo non esisteva nello schema originale, che aveva solo
 > `target` denormalizzato). I vecchi record `Result` privi di `targetId` sono
 > stati migrati/ripuliti direttamente sul database backend — non esistono più
 > record legacy senza questo campo, quindi il codice frontend può assumerlo
 > sempre presente e non necessita di fallback per la sua assenza.
+
+### `GET /results` — envelope paginato
+
+`ResultService.list()` **non** restituisce più un array: il backend risponde con
+un envelope `ResultPage`.
+
+```ts
+export interface ResultPage {
+  items: Result[];   // solo la pagina richiesta
+  total: number;     // conteggio totale DOPO i filtri, indipendente dalla pagina
+  page: number;      // pagina corrente (1-based)
+  pageSize: number;
+}
+```
+
+Filtri e paginazione supportati come query param: `scenarioPath`, `sessionId`,
+`clientId`, `page`, `pageSize`.
+
+Vincoli del backend da tenere presenti (verificati sul campo):
+
+- `pageSize` è **limitato a 200**: valori superiori rispondono `422`.
+- Omettere `page`/`pageSize` **non** restituisce tutto: il backend applica
+  comunque un `pageSize` di default (50). Non esiste quindi un modo per leggere
+  l'intero dataset in una sola richiesta.
+- `targetId` **non** è supportato come filtro: passarlo non produce errore ma
+  viene ignorato (il `total` resta invariato). Per questo la sezione Risultati
+  non espone un filtro per Server, pur presente nel mockup di design: filtrarlo
+  client-side falserebbe `total` e quindi la paginazione.
+
+Di conseguenza `ResultService` espone due metodi con usi distinti — **scegliere
+quello giusto è una questione di correttezza, non di performance**:
+
+- `list(filters)` → una sola pagina. Da usare **solo** per la tabella grezza,
+  che mostra una pagina per volta.
+- `listAll(filters)` → l'insieme completo filtrato, ricomposto incatenando le
+  pagine (`pageSize` 200, tetto di 50 pagine = 10.000 record). Da usare per
+  tutto ciò che ragiona sull'insieme: confronto HTTP/2 vs HTTP/3, grafici,
+  confronto tra sessioni, export Excel, e gli aggregati della Dashboard.
+  Usare `list()` in questi punti produrrebbe medie calcolate su un
+  sottoinsieme arbitrario (le prime 50 misure), cioè **dati sbagliati**.
 
 ### Relazioni
 
@@ -467,6 +512,16 @@ export class SessionService {
     modal è in modalità `repropose`.
   - `saveEditorInPlace()`/`saveEditorDuplicate()` condividono la stessa
     condizione di abilitazione (`editorSaveDisabled`).
+- **Filtri e paginazione in Risultati**: i filtri della sezione Risultati
+  (Sessione, Scenario, Client) sono **tutti applicati lato backend** come query
+  param, mai client-side. Con la paginazione server-side un filtro applicato
+  sulla sola pagina corrente falserebbe sia le righe mostrate sia il `total`
+  usato per contare le pagine. Ogni cambio di filtro riporta la pagina a 1 e
+  ricarica due insiemi: la pagina corrente (`list`, per la tabella) e l'insieme
+  completo (`listAll`, per aggregati/grafici/export). Il cambio di pagina invece
+  ricarica **solo** la pagina: gli aggregati non dipendono dalla paginazione.
+  Il conteggio "N misurazioni" e i controlli avanti/indietro derivano dal
+  `total` del backend, non dalla lunghezza della pagina.
 - **Arrotondamento dei valori numerici (Risultati)**: tempo totale, TTFB e
   dati trasferiti (KB) sono mostrati arrotondati a **3 cifre decimali**
   (`.toFixed(3)`) ovunque compaiano — tabella grezza, drawer di dettaglio,

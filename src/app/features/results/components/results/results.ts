@@ -2,11 +2,12 @@ import { Component, computed, DestroyRef, inject, OnInit, signal, WritableSignal
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, forkJoin, of } from 'rxjs';
 import { LoadingService } from '../../../../core/state/loading.service';
-import { Protocol, Result, Scenario, Session, Target } from '../../../../models';
+import { Client, Protocol, Result, Scenario, Session, Target } from '../../../../models';
+import { ClientService } from '../../../clients/data/client.service';
 import { ScenarioService } from '../../../scenarios/data/scenario.service';
 import { SessionService } from '../../../sessions/data/session.service';
 import { TargetService } from '../../../targets/data/target.service';
-import { ResultFilters, ResultService } from '../../data/result.service';
+import { ResultFilters, ResultPage, ResultService } from '../../data/result.service';
 
 /** Riga di confronto H2 vs H3 per una singola metrica aggregata. */
 interface CompareRow {
@@ -48,6 +49,7 @@ interface RunRow {
   result: Result;
   hasTag: boolean;
   tagText: string;
+  clientLabel: string;
   protoLabel: string;
   protoClass: string;
   totalText: string;
@@ -67,6 +69,9 @@ interface DetailRow {
 const H2_COLOR = 'var(--accent)';
 const H3_COLOR = 'var(--warn)';
 
+/** Righe per pagina richieste al backend per la tabella delle misurazioni grezze. */
+const PAGE_SIZE = 25;
+
 /**
  * Sezione "Risultati": confronto aggregato HTTP/2 vs HTTP/3, filtri per
  * scenario e sessione, grafici di andamento/confronto e tabella grezza con
@@ -84,16 +89,25 @@ export class Results implements OnInit {
   private readonly scenarioService = inject(ScenarioService);
   private readonly sessionService = inject(SessionService);
   private readonly targetService = inject(TargetService);
+  private readonly clientService = inject(ClientService);
   private readonly loadingService = inject(LoadingService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly loading = toSignal(this.loadingService.loading$, { initialValue: false });
   protected readonly loaded = signal(false);
 
+  /**
+   * Insieme **completo** dei Result che soddisfano i filtri correnti (nessuna
+   * paginazione): alimenta gli aggregati (confronto protocolli, grafici) e
+   * l'export Excel, che devono ragionare su tutti i dati, non sulla pagina.
+   */
   private readonly results = signal<Result[]>([]);
+  /** Sola pagina corrente, richiesta al backend: alimenta la tabella grezza. */
+  private readonly pageResults = signal<Result[]>([]);
   private readonly scenarios = signal<Scenario[]>([]);
   private readonly sessions = signal<Session[]>([]);
   private readonly targets = signal<Target[]>([]);
+  private readonly clients = signal<Client[]>([]);
 
   /** Etichetta del Target per id (Result.targetId è un FK diretto e univoco). */
   private readonly targetTagById = computed(() => {
@@ -104,9 +118,19 @@ export class Results implements OnInit {
     return map;
   });
 
+  /** Nome del Client per id (Result.clientId è un FK diretto e univoco). */
+  private readonly clientNameById = computed(() => {
+    const map = new Map<string, string>();
+    for (const c of this.clients()) {
+      map.set(c.id, c.name);
+    }
+    return map;
+  });
+
   // ---- filtri ----
   protected readonly scenarioFilter = signal<string>('all');
   protected readonly sessionFilter = signal<string>('all');
+  protected readonly clientFilter = signal<string>('all');
 
   protected readonly scenarioOptions = computed(() => [
     { value: 'all', label: 'Tutti gli scenari' },
@@ -116,6 +140,10 @@ export class Results implements OnInit {
     { value: 'all', label: 'Tutte le sessioni' },
     ...this.sessions().map((s) => ({ value: s.id, label: s.name })),
   ]);
+  protected readonly clientOptions = computed(() => [
+    { value: 'all', label: 'Tutti i client' },
+    ...this.clients().map((c) => ({ value: c.id, label: c.name })),
+  ]);
 
   private readonly selectedScenario = computed(
     () => this.scenarios().find((s) => s.id === this.scenarioFilter()) ?? null,
@@ -123,6 +151,19 @@ export class Results implements OnInit {
   private readonly selectedSession = computed(
     () => this.sessions().find((s) => s.id === this.sessionFilter()) ?? null,
   );
+
+  // ---- paginazione (server-side) della tabella grezza ----
+  protected readonly page = signal(1);
+  /** Totale dei Result che soddisfano i filtri, restituito dal backend. */
+  private readonly total = signal(0);
+  protected readonly totalPages = computed(() =>
+    Math.max(1, Math.ceil(this.total() / PAGE_SIZE)),
+  );
+  protected readonly paginationText = computed(
+    () => `Pagina ${this.page()} di ${this.totalPages()}`,
+  );
+  protected readonly canPrevPage = computed(() => this.page() > 1);
+  protected readonly canNextPage = computed(() => this.page() < this.totalPages());
 
   // ---- confronto tra due sessioni (grafico dedicato) ----
   protected readonly compareSessionA = signal<string>('');
@@ -138,15 +179,13 @@ export class Results implements OnInit {
   ]);
 
   /**
-   * Il filtro per sessione è applicato lato backend (vedi `reloadResults`):
-   * `results` contiene già solo i Result della sessione selezionata, tramite
-   * Result.sessionId (riferimento diretto e univoco). Qui resta solo il
-   * filtro per scenario, che invece è puramente client-side.
+   * Tutti i filtri (sessione, scenario, client) sono applicati **lato backend**
+   * in `reloadResults`: è indispensabile con la paginazione server-side, perché
+   * un filtro client-side sulla sola pagina corrente falserebbe sia le righe
+   * mostrate sia il `total` usato per contare le pagine. Qui quindi non resta
+   * alcun filtro da applicare: `results` è già l'insieme filtrato completo.
    */
-  private readonly filteredResults = computed(() => {
-    const scenario = this.selectedScenario();
-    return scenario ? this.results().filter((r) => r.scenarioPath === scenario.path) : this.results();
-  });
+  private readonly filteredResults = computed(() => this.results());
 
   private readonly completedResults = computed(() =>
     this.filteredResults().filter((r) => r.status === 'completed'),
@@ -155,9 +194,13 @@ export class Results implements OnInit {
   protected readonly scopeText = computed(() => {
     const session = this.selectedSession();
     const scenario = this.selectedScenario();
+    const client = this.clients().find((c) => c.id === this.clientFilter()) ?? null;
     const parts: string[] = [];
     parts.push(session ? session.name : 'Tutte le sessioni');
     parts.push(scenario ? scenario.path : 'tutti gli scenari');
+    if (client) {
+      parts.push(client.name);
+    }
     return parts.join(' · ');
   });
 
@@ -293,15 +336,17 @@ export class Results implements OnInit {
     }));
   });
 
-  // ---- tabella misurazioni grezze ----
+  // ---- tabella misurazioni grezze (solo la pagina corrente) ----
   protected readonly runRows = computed<RunRow[]>(() => {
     const tagById = this.targetTagById();
-    return this.filteredResults().map((r) => {
+    const clientById = this.clientNameById();
+    return this.pageResults().map((r) => {
       const tag = tagById.get(r.targetId) ?? '';
       return {
         result: r,
         hasTag: tag.trim() !== '',
         tagText: tag,
+        clientLabel: clientById.get(r.clientId) ?? '—',
         protoLabel: r.proto,
         protoClass: this.protoTintClass(r.proto),
         totalText: r.status === 'completed' ? `${r.total.toFixed(3)} ms` : '—',
@@ -315,7 +360,8 @@ export class Results implements OnInit {
       };
     });
   });
-  protected readonly runCountText = computed(() => `${this.runRows().length} misurazioni`);
+  /** Conteggio complessivo (dal backend), non della sola pagina mostrata. */
+  protected readonly runCountText = computed(() => `${this.total()} misurazioni`);
 
   // ---- drawer di dettaglio ----
   private readonly selectedResult = signal<Result | null>(null);
@@ -364,29 +410,57 @@ export class Results implements OnInit {
   }
 
   private load(): void {
+    const filters = this.currentFilters();
     forkJoin({
-      results: this.resultService.list().pipe(catchError(() => of<Result[]>([]))),
+      page: this.pageRequest(filters, 1),
+      all: this.allRequest(filters),
       scenarios: this.scenarioService.list().pipe(catchError(() => of<Scenario[]>([]))),
       sessions: this.sessionService.list().pipe(catchError(() => of<Session[]>([]))),
       targets: this.targetService.list().pipe(catchError(() => of<Target[]>([]))),
+      clients: this.clientService.list().pipe(catchError(() => of<Client[]>([]))),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(({ results, scenarios, sessions, targets }) => {
-        this.results.set(results);
+      .subscribe(({ page, all, scenarios, sessions, targets, clients }) => {
+        this.applyPage(page);
+        this.results.set(all);
         this.scenarios.set(scenarios);
         this.sessions.set(sessions);
         this.targets.set(targets);
+        this.clients.set(clients);
         this.loaded.set(true);
       });
   }
 
   protected setScenarioFilter(value: string): void {
     this.scenarioFilter.set(value);
+    this.onFiltersChanged();
   }
 
   protected setSessionFilter(value: string): void {
     this.sessionFilter.set(value);
-    this.reloadResults();
+    this.onFiltersChanged();
+  }
+
+  protected setClientFilter(value: string): void {
+    this.clientFilter.set(value);
+    this.onFiltersChanged();
+  }
+
+  // ---- paginazione ----
+  protected prevPage(): void {
+    if (!this.canPrevPage()) {
+      return;
+    }
+    this.page.update((p) => p - 1);
+    this.reloadPage();
+  }
+
+  protected nextPage(): void {
+    if (!this.canNextPage()) {
+      return;
+    }
+    this.page.update((p) => p + 1);
+    this.reloadPage();
   }
 
   protected setCompareSessionA(value: string): void {
@@ -410,8 +484,9 @@ export class Results implements OnInit {
       return;
     }
     target.set(null);
+    // listAll: il confronto media tutte le misure della sessione, non le prime 200.
     this.resultService
-      .list({ sessionId })
+      .listAll({ sessionId })
       .pipe(
         catchError(() => of<Result[]>([])),
         takeUntilDestroyed(this.destroyRef),
@@ -419,20 +494,71 @@ export class Results implements OnInit {
       .subscribe((results) => target.set(results));
   }
 
-  /**
-   * Ricarica i Result dal backend applicando il filtro per sessione corrente
-   * (query param `sessionId`), o senza filtro se è selezionato "Tutte le sessioni".
-   */
-  private reloadResults(): void {
+  /** Filtri correnti tradotti in query param per il backend ("all" = nessun filtro). */
+  private currentFilters(): ResultFilters {
+    const filters: ResultFilters = {};
     const sessionId = this.sessionFilter();
-    const filters: ResultFilters | undefined = sessionId === 'all' ? undefined : { sessionId };
-    this.resultService
-      .list(filters)
-      .pipe(
-        catchError(() => of<Result[]>([])),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((results) => this.results.set(results));
+    const clientId = this.clientFilter();
+    const scenario = this.selectedScenario();
+    if (sessionId !== 'all') {
+      filters.sessionId = sessionId;
+    }
+    if (clientId !== 'all') {
+      filters.clientId = clientId;
+    }
+    if (scenario) {
+      filters.scenarioPath = scenario.path;
+    }
+    return filters;
+  }
+
+  /** Richiesta della sola pagina indicata (tabella grezza). */
+  private pageRequest(filters: ResultFilters, page: number) {
+    return this.resultService
+      .list({ ...filters, page, pageSize: PAGE_SIZE })
+      .pipe(catchError(() => of<ResultPage>({ items: [], total: 0, page, pageSize: PAGE_SIZE })));
+  }
+
+  /**
+   * Richiesta dell'insieme completo filtrato (aggregati/grafici ed export).
+   * Usa `listAll`, che ricompone tutte le pagine: il backend limita `pageSize`
+   * a 200, quindi una singola richiesta non basta a coprire l'intero dataset.
+   */
+  private allRequest(filters: ResultFilters) {
+    return this.resultService.listAll(filters).pipe(catchError(() => of<Result[]>([])));
+  }
+
+  private applyPage(page: ResultPage): void {
+    this.pageResults.set(page.items);
+    this.total.set(page.total);
+  }
+
+  /**
+   * Un cambio di filtro riparte sempre da pagina 1 e ricarica entrambi gli
+   * insiemi: la pagina corrente (tabella) e il set completo (aggregati/export).
+   */
+  private onFiltersChanged(): void {
+    this.page.set(1);
+    const filters = this.currentFilters();
+    forkJoin({
+      page: this.pageRequest(filters, 1),
+      all: this.allRequest(filters),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(({ page, all }) => {
+        this.applyPage(page);
+        this.results.set(all);
+      });
+  }
+
+  /**
+   * Cambio di pagina: ricarica solo la pagina richiesta. Gli aggregati non
+   * dipendono dalla paginazione, quindi il set completo resta invariato.
+   */
+  private reloadPage(): void {
+    this.pageRequest(this.currentFilters(), this.page())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((page) => this.applyPage(page));
   }
 
   protected openDetail(result: Result): void {
@@ -444,16 +570,19 @@ export class Results implements OnInit {
   }
 
   /**
-   * Esporta in .xlsx (client-side, via SheetJS) esattamente i Result
-   * attualmente filtrati — la stessa selezione visibile nella tabella grezza
-   * (filtro scenario + sessione già applicati a `filteredResults`).
+   * Esporta in .xlsx (client-side, via SheetJS) **tutti** i Result che
+   * soddisfano i filtri correnti (sessione, scenario, client), non la sola
+   * pagina visibile in tabella: l'export usa `filteredResults`, cioè l'insieme
+   * completo caricato per gli aggregati.
    * SheetJS è caricata on-demand (~300 KB) solo al click, per non appesantire
    * il bundle iniziale con una libreria usata raramente.
    */
   protected async exportExcel(): Promise<void> {
     const XLSX = await import('xlsx');
+    const clientById = this.clientNameById();
     const rows = this.filteredResults().map((r) => ({
       Target: r.target,
+      Client: clientById.get(r.clientId) ?? '',
       Scenario: r.scenarioPath,
       'Protocollo richiesto': r.proto,
       'Protocollo effettivo': r.actualProto,
