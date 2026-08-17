@@ -481,15 +481,33 @@ export class SessionService {
   selezione (`selectedTargetIds`/`selectedScenarioIds`, tracciato per id):
   cambiare filtro non deseleziona gli elementi già scelti, anche se non più
   visibili nell'elenco filtrato.
-- **Grafico "Andamento e confronto" (Risultati)**: due grafici a barre. A
-  sinistra il **confronto tra due Sessioni** scelte da due `<select>` dedicati
-  (`compareSessionA`/`compareSessionB`, popolati da `SessionService`): i Result
-  delle due sessioni sono caricati a parte via il filtro `sessionId` di
-  `ResultService`, indipendenti dai filtri in cima; per ogni metrica (tempo
-  totale medio, TTFB medio) una barra per combinazione sessione × protocollo,
-  colorata HTTP/2 (`--accent`) / HTTP/3 (`--warn`). Gestiti lo stato iniziale
-  (nessuna scelta) e le sessioni senza Result. A destra il tempo medio **per
-  server**. Nessun dato simulato: tutto deriva da `ResultService`.
+- **Pannello "Andamento e confronto" (Risultati)**: un unico grafico a barre a
+  tutta larghezza che confronta HTTP/2 vs HTTP/3 su una dimensione scelta
+  dall'utente, tramite due `<select>`:
+  - **Raggruppa per** (`groupBy`, tipo `GroupDimension`): `engine` →
+    `Target.name`, `environment` → `Target.tag` (vuoto ⇒ `—`), `client` → nome
+    del Client via `clientId`, `scenario` → `Result.scenarioPath`.
+  - **Metrica** (`metric`, tipo `MetricKey`): `total`, `ttfb` o `kb`.
+
+  L'aggregazione (`groupedCompare`) è **client-side** sull'insieme filtrato
+  completo già in memoria (`results`, popolato da `listAll` — vedi §2): per
+  ogni gruppo calcola la media della metrica separatamente per
+  `actualProto === 'HTTP/2'` e `'HTTP/3'`, considerando solo i Result con
+  `status === 'completed'`. Cambiare dimensione o metrica **non** rifà una
+  chiamata al backend: sono scelte di sola presentazione.
+
+  Il pannello rispetta i filtri di pagina (Sessione/Scenario/Client), che sono
+  la base dati di `results`. Un protocollo privo di misure in un gruppo non
+  produce barra (l'assenza di dati resta distinguibile da un valore zero); la
+  scala delle altezze è comune a tutti i gruppi, così le barre sono
+  confrontabili a vista. Colori: HTTP/2 `--accent`, HTTP/3 `--warn`.
+  Nessun dato simulato: tutto deriva da `ResultService`.
+
+  > I precedenti grafici "Confronto sessioni" (due `<select>` di sessioni con
+  > caricamento dedicato) e "Tempo medio per server" sono stati **rimossi** e
+  > sostituiti da questo pannello: il raggruppamento per Motore copre il
+  > secondo, e il confronto tra sessioni resta ottenibile usando il filtro
+  > Sessione in cima alla pagina.
 - **Nome sessione modificabile**: il modal "Modifica sessione" (`Sessions`)
   espone un campo nome (`editorName`) oltre a rimozione/riordino degli item.
 - **Footer del modal "Modifica sessione"**: dipende da `editorMode`

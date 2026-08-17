@@ -1,4 +1,4 @@
-import { Component, computed, DestroyRef, inject, OnInit, signal, WritableSignal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, forkJoin, of } from 'rxjs';
 import { LoadingService } from '../../../../core/state/loading.service';
@@ -21,27 +21,24 @@ interface CompareRow {
   badgeClass: string;
 }
 
-/** Barra del grafico a barre: un server, valore medio colorato per protocollo. */
-interface ServerBar {
-  name: string;
+/** Dimensione su cui raggruppare il confronto HTTP/2 vs HTTP/3. */
+type GroupDimension = 'engine' | 'environment' | 'client' | 'scenario';
+
+/** Metrica confrontata nel pannello di confronto raggruppato. */
+type MetricKey = 'total' | 'ttfb' | 'kb';
+
+/** Barra singola (un protocollo) all'interno di un gruppo. */
+interface GroupBar {
+  proto: Protocol;
   valueText: string;
   heightPct: number;
   colorVar: string;
 }
 
-/** Barra del confronto tra sessioni: una sessione × un protocollo. */
-interface CompareBar {
-  name: string;
-  protoLabel: Protocol;
-  valueText: string;
-  heightPct: number;
-  colorVar: string;
-}
-
-/** Gruppo di barre per una singola metrica nel confronto tra due sessioni. */
-interface CompareMetric {
+/** Un gruppo del confronto: le barre HTTP/2 e HTTP/3 con la loro etichetta. */
+interface GroupCompare {
   label: string;
-  bars: CompareBar[];
+  bars: GroupBar[];
 }
 
 /** Riga della tabella delle misurazioni grezze. */
@@ -75,9 +72,10 @@ const PAGE_SIZE = 25;
 
 /**
  * Sezione "Risultati": confronto aggregato HTTP/2 vs HTTP/3, filtri per
- * scenario e sessione, grafici di andamento/confronto e tabella grezza con
- * drawer di dettaglio. Tutti i dati derivano da ResultService: nessun valore
- * simulato o hardcoded.
+ * sessione/scenario/client, pannello di confronto raggruppabile (per motore,
+ * ambiente, client o scenario) e tabella grezza paginata con drawer di
+ * dettaglio. Tutti i dati derivano da ResultService: nessun valore simulato o
+ * hardcoded.
  */
 @Component({
   selector: 'app-results',
@@ -179,18 +177,21 @@ export class Results implements OnInit {
   protected readonly canPrevPage = computed(() => this.page() > 1);
   protected readonly canNextPage = computed(() => this.page() < this.totalPages());
 
-  // ---- confronto tra due sessioni (grafico dedicato) ----
-  protected readonly compareSessionA = signal<string>('');
-  protected readonly compareSessionB = signal<string>('');
-  // Result delle due sessioni scelte, caricati separatamente dai filtri in cima
-  // (via sessionId): null = nessuna sessione selezionata / caricamento in corso.
-  private readonly compareResultsA = signal<Result[] | null>(null);
-  private readonly compareResultsB = signal<Result[] | null>(null);
+  // ---- confronto raggruppato HTTP/2 vs HTTP/3 ----
+  protected readonly groupBy = signal<GroupDimension>('engine');
+  protected readonly metric = signal<MetricKey>('total');
 
-  protected readonly compareSessionOptions = computed(() => [
-    { value: '', label: 'Seleziona sessione' },
-    ...this.sessions().map((s) => ({ value: s.id, label: s.name })),
-  ]);
+  protected readonly groupByOptions: { value: GroupDimension; label: string }[] = [
+    { value: 'engine', label: 'Motore' },
+    { value: 'environment', label: 'Ambiente' },
+    { value: 'client', label: 'Client' },
+    { value: 'scenario', label: 'Scenario' },
+  ];
+  protected readonly metricOptions: { value: MetricKey; label: string }[] = [
+    { value: 'total', label: 'Tempo totale medio' },
+    { value: 'ttfb', label: 'TTFB medio' },
+    { value: 'kb', label: 'Dati trasferiti medi' },
+  ];
 
   /**
    * Tutti i filtri (sessione, scenario, client) sono applicati **lato backend**
@@ -263,92 +264,85 @@ export class Results implements OnInit {
 
   protected readonly overallBadgeClass = computed(() => this.protoTintClass(this.overallWinner()));
 
-  // ---- confronto tra due sessioni: barre affiancate per metrica ----
-  /**
-   * Costruisce, per ogni metrica principale (tempo totale, TTFB), una barra per
-   * ciascuna combinazione sessione × protocollo con misurazioni completate.
-   * Vuoto finché entrambe le sessioni non sono selezionate e caricate.
-   */
-  protected readonly sessCompareMetrics = computed<CompareMetric[]>(() => {
-    const a = this.compareResultsA();
-    const b = this.compareResultsB();
-    const sessA = this.sessions().find((s) => s.id === this.compareSessionA()) ?? null;
-    const sessB = this.sessions().find((s) => s.id === this.compareSessionB()) ?? null;
-    if (!a || !b || !sessA || !sessB) {
-      return [];
-    }
-    const slots = [
-      { session: sessA, results: a.filter((r) => r.status === 'completed') },
-      { session: sessB, results: b.filter((r) => r.status === 'completed') },
-    ];
-    const protos: Protocol[] = ['HTTP/2', 'HTTP/3'];
-    const metrics: { key: 'total' | 'ttfb'; label: string }[] = [
-      { key: 'total', label: 'Tempo totale medio (ms)' },
-      { key: 'ttfb', label: 'TTFB medio (ms)' },
-    ];
-    return metrics.map(({ key, label }) => {
-      const raw = slots.flatMap((slot) =>
-        protos
-          .map((proto) => {
-            const vals = slot.results
-              .filter((r) => r.actualProto === proto)
-              .map((r) => r[key]);
-            if (vals.length === 0) {
-              return null;
-            }
-            return { name: slot.session.name, proto, value: this.average(vals) };
-          })
-          .filter((x): x is { name: string; proto: Protocol; value: number } => x !== null),
-      );
-      const top = raw.length
-        ? Math.ceil(Math.max(...raw.map((r) => r.value)) / 10) * 10 + 10
-        : 10;
-      const bars: CompareBar[] = raw.map((r) => ({
-        name: r.name,
-        protoLabel: r.proto,
-        valueText: `${r.value.toFixed(3)} ms`,
-        heightPct: Math.max(4, (r.value / top) * 100),
-        colorVar: r.proto === 'HTTP/3' ? H3_COLOR : H2_COLOR,
-      }));
-      return { label, bars };
-    });
+  // ---- confronto raggruppato: barre HTTP/2 vs HTTP/3 per gruppo ----
+  /** Etichetta dell'asse: metrica scelta con la relativa unità di misura. */
+  protected readonly groupedMetricLabel = computed(() => {
+    const key = this.metric();
+    const label = this.metricOptions.find((o) => o.value === key)?.label ?? '';
+    return `${label} (${key === 'kb' ? 'KB' : 'ms'})`;
   });
 
-  protected readonly sessCompareReady = computed(() =>
-    this.sessCompareMetrics().some((m) => m.bars.length > 0),
-  );
-  /** Messaggio dello stato vuoto: nessuna scelta vs sessioni senza misurazioni. */
-  protected readonly sessCompareMessage = computed(() =>
-    !this.compareSessionA() || !this.compareSessionB()
-      ? 'Scegli due sessioni da confrontare.'
-      : 'Nessuna misurazione disponibile per una delle sessioni selezionate.',
-  );
-
-  // ---- grafico a barre: tempo medio per server ----
   /**
-   * Una barra per server (target) tra i Result filtrati, con il tempo totale
-   * medio; il colore riflette il protocollo prevalente delle sue misurazioni.
+   * Aggrega client-side l'insieme filtrato completo (`results`, da `listAll`):
+   * raggruppa per la dimensione scelta e calcola, per ciascun gruppo, la media
+   * della metrica scelta separatamente per HTTP/2 e HTTP/3 — considerando solo
+   * i Result completati. Un protocollo senza misure nel gruppo non produce
+   * barra, così l'assenza di dati resta distinguibile da un valore zero.
    */
-  protected readonly serverBars = computed<ServerBar[] | null>(() => {
+  protected readonly groupedCompare = computed<GroupCompare[]>(() => {
     const done = this.completedResults();
     if (done.length === 0) {
-      return null;
+      return [];
     }
-    const names = Array.from(new Set(done.map((r) => r.target)));
-    const raw = names.map((name) => {
-      const rs = done.filter((r) => r.target === name);
-      const h3 = rs.filter((r) => r.actualProto === 'HTTP/3').length;
-      const proto: Protocol = h3 * 2 >= rs.length ? 'HTTP/3' : 'HTTP/2';
-      return { name, value: this.average(rs.map((r) => r.total)), proto };
+    const dimension = this.groupBy();
+    const metric = this.metric();
+    const nameById = this.targetNameById();
+    const tagById = this.targetTagById();
+    const clientById = this.clientNameById();
+    const labelOf = (r: Result): string => {
+      switch (dimension) {
+        case 'engine':
+          return nameById.get(r.targetId) ?? r.target;
+        case 'environment':
+          return tagById.get(r.targetId)?.trim() || '—';
+        case 'client':
+          return clientById.get(r.clientId) ?? '—';
+        default:
+          return r.scenarioPath;
+      }
+    };
+
+    const buckets = new Map<string, { h2: number[]; h3: number[] }>();
+    for (const r of done) {
+      const label = labelOf(r);
+      let bucket = buckets.get(label);
+      if (!bucket) {
+        bucket = { h2: [], h3: [] };
+        buckets.set(label, bucket);
+      }
+      (r.actualProto === 'HTTP/3' ? bucket.h3 : bucket.h2).push(r[metric]);
+    }
+
+    const entries = [...buckets.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    const means = entries.map(([label, b]) => ({
+      label,
+      h2: b.h2.length ? this.average(b.h2) : null,
+      h3: b.h3.length ? this.average(b.h3) : null,
+    }));
+    const values = means.flatMap((m) => [m.h2, m.h3]).filter((v): v is number => v !== null);
+    if (values.length === 0) {
+      return [];
+    }
+    // scala comune a tutti i gruppi: le altezze restano confrontabili a vista
+    const top = Math.max(...values) * 1.1 || 1;
+    const fmt = (v: number) => (metric === 'kb' ? this.formatKb(v) : `${v.toFixed(3)} ms`);
+    const bar = (proto: Protocol, value: number): GroupBar => ({
+      proto,
+      valueText: fmt(value),
+      heightPct: Math.max(4, (value / top) * 100),
+      colorVar: proto === 'HTTP/3' ? H3_COLOR : H2_COLOR,
     });
-    const top = Math.ceil(Math.max(...raw.map((r) => r.value)) / 50) * 50 + 50;
-    return raw.map((r) => ({
-      name: r.name,
-      valueText: `${r.value.toFixed(3)} ms`,
-      heightPct: Math.max(4, (r.value / top) * 100),
-      colorVar: r.proto === 'HTTP/3' ? H3_COLOR : H2_COLOR,
+
+    return means.map((m) => ({
+      label: m.label,
+      bars: [
+        ...(m.h2 !== null ? [bar('HTTP/2', m.h2)] : []),
+        ...(m.h3 !== null ? [bar('HTTP/3', m.h3)] : []),
+      ],
     }));
   });
+
+  protected readonly groupedCompareReady = computed(() => this.groupedCompare().length > 0);
 
   // ---- tabella misurazioni grezze (solo la pagina corrente) ----
   protected readonly runRows = computed<RunRow[]>(() => {
@@ -479,35 +473,17 @@ export class Results implements OnInit {
     this.reloadPage();
   }
 
-  protected setCompareSessionA(value: string): void {
-    this.compareSessionA.set(value);
-    this.loadCompareResults(value, this.compareResultsA);
-  }
-
-  protected setCompareSessionB(value: string): void {
-    this.compareSessionB.set(value);
-    this.loadCompareResults(value, this.compareResultsB);
-  }
-
   /**
-   * Carica i Result della sessione scelta per il grafico di confronto, tramite
-   * il filtro `sessionId` del backend, indipendentemente dai filtri in cima.
-   * Con id vuoto (nessuna scelta) azzera il relativo insieme.
+   * Dimensione e metrica del confronto sono puramente di presentazione: si
+   * applicano a `results` già in memoria, quindi non richiedono una nuova
+   * chiamata al backend.
    */
-  private loadCompareResults(sessionId: string, target: WritableSignal<Result[] | null>): void {
-    if (!sessionId) {
-      target.set(null);
-      return;
-    }
-    target.set(null);
-    // listAll: il confronto media tutte le misure della sessione, non le prime 200.
-    this.resultService
-      .listAll({ sessionId })
-      .pipe(
-        catchError(() => of<Result[]>([])),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((results) => target.set(results));
+  protected setGroupBy(value: string): void {
+    this.groupBy.set(value as GroupDimension);
+  }
+
+  protected setMetric(value: string): void {
+    this.metric.set(value as MetricKey);
   }
 
   /** Filtri correnti tradotti in query param per il backend ("all" = nessun filtro). */

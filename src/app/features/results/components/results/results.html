@@ -167,140 +167,80 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-stretch gap-7">
-        <!-- CONFRONTO TRA DUE SESSIONI -->
-        <div>
-          <div class="mb-3.5 flex flex-wrap items-center justify-between gap-3">
-            <div class="font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase">
-              Confronto sessioni
-            </div>
-            <div class="flex items-center gap-2">
-              <select
-                [value]="compareSessionA()"
-                (change)="setCompareSessionA($any($event.target).value)"
-                class="h-8 max-w-[170px] min-w-[150px] cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-medium text-[var(--text)] outline-none"
-              >
-                @for (opt of compareSessionOptions(); track opt.value) {
-                  <option [value]="opt.value">{{ opt.label }}</option>
-                }
-              </select>
-              <span class="font-mono text-[11px] text-[var(--text-faint)]">vs</span>
-              <select
-                [value]="compareSessionB()"
-                (change)="setCompareSessionB($any($event.target).value)"
-                class="h-8 max-w-[170px] min-w-[150px] cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-medium text-[var(--text)] outline-none"
-              >
-                @for (opt of compareSessionOptions(); track opt.value) {
-                  <option [value]="opt.value">{{ opt.label }}</option>
-                }
-              </select>
-            </div>
-          </div>
-
-          @if (sessCompareReady()) {
-            <div class="flex h-[220px] gap-6">
-              @for (m of sessCompareMetrics(); track m.label) {
-                <div class="flex min-w-0 flex-1 flex-col">
-                  <div
-                    class="mb-2.5 text-center font-mono text-[10px] text-[var(--text-faint)]"
-                  >
-                    {{ m.label }}
-                  </div>
-                  <!-- scroll orizzontale + barre a larghezza fissa: la riga
-                       resta leggibile e contenuta anche con molte barre
-                       (più sessioni/protocolli), invece di deformarsi o
-                       traboccare dalla colonna. -->
-                  <div class="flex-1 overflow-x-auto">
-                    <div class="flex h-full min-w-max items-stretch gap-2.5">
-                      @for (b of m.bars; track $index) {
-                        <div class="flex w-11 flex-none flex-col items-center gap-2">
-                          <div
-                            class="flex w-full flex-1 flex-col items-center justify-end gap-[7px]"
-                          >
-                            <span class="font-mono text-[10px] text-[var(--text-muted)]">{{
-                              b.valueText
-                            }}</span>
-                            <div
-                              class="w-full max-w-[38px] rounded-t-[6px] transition-[height] duration-500"
-                              [style.height.%]="b.heightPct"
-                              [style.background]="b.colorVar"
-                            ></div>
-                          </div>
-                          <span
-                            class="w-full truncate text-center font-mono text-[10px] text-[var(--text)]"
-                            [title]="b.name + ' · ' + b.protoLabel"
-                            >{{ b.name }}</span
-                          >
-                        </div>
-                      }
-                    </div>
-                  </div>
-                </div>
-              }
-            </div>
-          } @else {
-            <div
-              class="flex h-[220px] items-center justify-center rounded-xl border border-dashed border-[var(--border-strong)]"
-            >
-              <p class="m-0 px-5 text-center text-[12.5px] text-[var(--text-faint)]">
-                {{ sessCompareMessage() }}
-              </p>
-            </div>
-          }
+      <!-- CONFRONTO RAGGRUPPATO: una coppia di barre H2/H3 per gruppo -->
+      <div class="mb-3.5 flex flex-wrap items-center justify-between gap-3">
+        <div class="font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase">
+          {{ groupedMetricLabel() }}
         </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+            >Raggruppa per</label
+          >
+          <select
+            [value]="groupBy()"
+            (change)="setGroupBy($any($event.target).value)"
+            class="h-8 min-w-[130px] cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-medium text-[var(--text)] outline-none"
+          >
+            @for (opt of groupByOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+          <label
+            class="ml-1 font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase"
+            >Metrica</label
+          >
+          <select
+            [value]="metric()"
+            (change)="setMetric($any($event.target).value)"
+            class="h-8 min-w-[170px] cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-medium text-[var(--text)] outline-none"
+          >
+            @for (opt of metricOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </div>
+      </div>
 
-        <!-- BARRE: tempo medio per server -->
-        <div>
-          <div class="mb-3.5 flex flex-wrap items-center justify-between gap-3">
-            <div class="font-mono text-[10px] tracking-[.8px] text-[var(--text-faint)] uppercase">
-              Tempo medio per server (ms)
-            </div>
-            <!-- placeholder invisibile: stessa altezza (h-8) della riga di
-                 select del grafico "Confronto sessioni", per allineare i due
-                 riquadri alla stessa altezza indipendentemente dal fatto che
-                 questa colonna non abbia controlli propri. Larghezza minima
-                 (w-px) per non forzare mai un wrap in questa colonna più
-                 stretta, qualunque sia la lunghezza dell'etichetta. -->
-            <div class="invisible h-8 w-px" aria-hidden="true"></div>
-          </div>
-          @if (serverBars(); as bars) {
-            <!-- scroll orizzontale + barre a larghezza fissa: scala a
-                 qualunque numero di server senza deformarsi o traboccare
-                 dalla colonna (stesso pattern del confronto sessioni). -->
-            <div class="h-[220px] overflow-x-auto">
-              <div class="flex h-full min-w-max items-stretch gap-3.5">
-                @for (b of bars; track b.name) {
-                  <div class="flex w-14 flex-none flex-col items-center gap-2">
-                    <div class="flex w-full flex-1 flex-col items-center justify-end gap-[7px]">
-                      <span class="font-mono text-[10.5px] text-[var(--text-muted)]">{{
+      @if (groupedCompareReady()) {
+        <!-- scroll orizzontale + barre a larghezza fissa: scala a qualunque
+             numero di gruppi senza deformarsi o traboccare dal pannello. -->
+        <div class="h-[240px] overflow-x-auto">
+          <div class="flex h-full min-w-max items-stretch gap-6">
+            @for (g of groupedCompare(); track g.label) {
+              <div class="flex flex-none flex-col items-center gap-2">
+                <div class="flex flex-1 items-stretch gap-2">
+                  @for (b of g.bars; track b.proto) {
+                    <div class="flex w-12 flex-none flex-col items-center justify-end gap-[7px]">
+                      <span class="font-mono text-[10px] whitespace-nowrap text-[var(--text-muted)]">{{
                         b.valueText
                       }}</span>
                       <div
-                        class="w-full max-w-[46px] rounded-t-[7px] transition-[height] duration-500"
+                        class="w-full max-w-[40px] rounded-t-[6px] transition-[height] duration-500"
                         [style.height.%]="b.heightPct"
                         [style.background]="b.colorVar"
+                        [title]="b.proto + ' · ' + b.valueText"
                       ></div>
                     </div>
-                    <span
-                      class="w-full truncate text-center font-mono text-[10.5px] text-[var(--text)]"
-                      [title]="b.name"
-                      >{{ b.name }}</span
-                    >
-                  </div>
-                }
+                  }
+                </div>
+                <span
+                  class="max-w-[160px] truncate text-center font-mono text-[10.5px] text-[var(--text)]"
+                  [title]="g.label"
+                  >{{ g.label }}</span
+                >
               </div>
-            </div>
-          } @else {
-            <div
-              class="flex h-[220px] items-center justify-center rounded-xl border border-dashed border-[var(--border-strong)]"
-            >
-              <p class="m-0 px-5 text-center text-[12.5px] text-[var(--text-faint)]">
-                Nessuna misurazione per il filtro corrente.
-              </p>
-            </div>
-          }
+            }
+          </div>
         </div>
-      </div>
+      } @else {
+        <div
+          class="flex h-[240px] items-center justify-center rounded-xl border border-dashed border-[var(--border-strong)]"
+        >
+          <p class="m-0 px-5 text-center text-[12.5px] text-[var(--text-faint)]">
+            Nessuna misurazione completata per il filtro corrente.
+          </p>
+        </div>
+      }
     </div>
 
     <!-- MISURAZIONI GREZZE -->
